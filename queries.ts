@@ -33,35 +33,33 @@ export const addUpdatedAtTrigger = (tableName: string) => {
     }
   );
 };
-export const createTable = () => {
-  pool.query(
-    `CREATE TABLE IF NOT EXISTS property_v2 (
-      id SERIAL PRIMARY KEY,
-      "desc" TEXT,
-      header TEXT,
-      type VARCHAR(255),
-      price double precision,
-      location VARCHAR(255),
-      bath VARCHAR(255),
-      area VARCHAR(255),
-      purpose VARCHAR(255),
-      bedroom VARCHAR(255),
-      added bigint DEFAULT 0,
-      initial_amount VARCHAR(255) NULL,
-      monthly_installment VARCHAR(255) NULL,
-      remaining_installments VARCHAR(255) NULL,
-      url TEXT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  );`,
-    (err, res) => {
-      if (err) {
-        logger.error(`error creating table: ${err}`);
-        return;
-      }
-      logger.debug("table created!");
-    }
-  );
+export const createTable = async () => {
+  try {
+    await pool.query(
+      `CREATE TABLE IF NOT EXISTS property_v2 (
+        id SERIAL PRIMARY KEY,
+        "desc" TEXT,
+        header TEXT,
+        type VARCHAR(255),
+        price double precision,
+        location VARCHAR(255),
+        bath VARCHAR(255),
+        area VARCHAR(255),
+        purpose VARCHAR(255),
+        bedroom VARCHAR(255),
+        added bigint DEFAULT 0,
+        initial_amount VARCHAR(255) NULL,
+        monthly_installment VARCHAR(255) NULL,
+        remaining_installments VARCHAR(255) NULL,
+        url TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`
+    );
+    logger.debug("table created!");
+  } catch (err) {
+    logger.error(`error creating table: ${err}`);
+  }
 };
 
 export const alreadyExists = async (url: string) => {
