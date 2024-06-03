@@ -1,11 +1,11 @@
-const cheerio = require("cheerio");
+import * as cheerio from "cheerio";
 const axios = require("axios").default;
 const fs = require("fs");
-const { insertIntoPropertyV2 } = require("./queries");
-const { formatPrice, relativeTimeToTimestamp } = require("./utils");
+import { insertIntoPropertyV2 } from "./queries";
+import { formatPrice, relativeTimeToTimestamp } from "./utils";
 require("dotenv").config();
 
-const scrapeHtmlPage = async (url) => {
+export const scrapeHtmlPage = async (url: string) => {
   const result = await axios.get(url);
   const $ = cheerio.load(result.data);
   $("style").remove();
@@ -16,7 +16,7 @@ const scrapeHtmlPage = async (url) => {
     .concat($('div[aria-label="Property header" i]').text());
 
   const description = $('div[aria-label="Property description text" i]').text();
-  const keyValue = {
+  const keyValue: { [key: string]: any } = {
     header,
     desc: description,
     url,
@@ -36,19 +36,28 @@ const scrapeHtmlPage = async (url) => {
   return keyValue;
 };
 
-const writeListingLinksToFile = async (url, filename) => {
-  let nextLink = url;
+export const writeListingLinksToFile = async (
+  url: string,
+  filename: string
+) => {
+  let nextLink: string | null = url;
   do {
     const mainPage = await axios.get(nextLink);
     const $ = cheerio.load(mainPage.data);
     const ws = fs.createWriteStream(filename, { flags: "a" });
     $('a[aria-label="Listing link"]')
-      .each(async function () {
+      .each(function () {
         const href = `${process.env.BASE_URL}${$(this).attr("href")}`;
         console.log("scraping href ==> ", href);
-        const data = await scrapeHtmlPage(href);
-        insertIntoPropertyV2(data);
-        ws.write(`${href}\n`);
+        scrapeHtmlPage(href)
+          .then((data) => {
+            insertIntoPropertyV2(data);
+            ws.write(`${href}\n`);
+          })
+          .catch((error) => {
+            console.log("error scraping href ==> ", href);
+            console.log(error);
+          });
       })
       .get();
     nextLink = $('a[title="Next"]').attr("href") || null;
@@ -57,5 +66,3 @@ const writeListingLinksToFile = async (url, filename) => {
     }
   } while (nextLink != null);
 };
-
-module.exports = { scrapeHtmlPage, writeListingLinksToFile };

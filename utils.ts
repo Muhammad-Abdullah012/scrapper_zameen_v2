@@ -1,7 +1,12 @@
 require("dotenv").config();
-const mapping = { Crore: 7, Lakh: 5, Arab: 9, Thousand: 3 };
+const mapping: { [key: string]: number } = {
+  Crore: 7,
+  Lakh: 5,
+  Arab: 9,
+  Thousand: 3,
+};
 
-const formatPrice = (price) => {
+export const formatPrice = (price: string) => {
   const parts = price.split(" ");
   if (parts.length !== 2) {
     return 0;
@@ -18,7 +23,7 @@ const formatPrice = (price) => {
   return numericValue;
 };
 
-const relativeTimeToTimestamp = (relativeTime) => {
+export const relativeTimeToTimestamp = (relativeTime: string) => {
   const now = new Date();
 
   let timestamp;
@@ -45,15 +50,13 @@ const relativeTimeToTimestamp = (relativeTime) => {
     throw new Error("Unsupported time format");
   }
 
-  return parseInt(timestamp.getTime() / 1000);
+  return parseInt((timestamp.getTime() / 1000).toString());
 };
 
-const getUrl = (propertyType, city, purpose, page = 1) => {
+export const getUrl = (propertyType: string, city: string, purpose: string) => {
   let type = purpose === "Rent" ? "Rentals" : propertyType;
   if (purpose === "Rent" && ["Plots", "Commercial"].includes(propertyType)) {
     type += "_" + propertyType;
   }
-  return `${process.env.BASE_URL}/${type}/${city}-${page}.html?sort=date_desc`;
+  return `${process.env.BASE_URL}/${type}/${city}-1.html?sort=date_desc`;
 };
-
-module.exports = { formatPrice, relativeTimeToTimestamp, getUrl };
