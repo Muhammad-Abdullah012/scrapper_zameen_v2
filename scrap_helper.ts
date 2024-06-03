@@ -53,13 +53,16 @@ export const scrapListing = async (url: string) => {
         })
         .get();
       const data = await Promise.allSettled(promises);
-      data.forEach((result) => {
-        if (result.status === "fulfilled") {
-          insertIntoPropertyV2(result.value);
-        } else {
-          logger.error(`Error scraping ${nextLink}: ${result.reason}`);
-        }
-      });
+      await Promise.allSettled(
+        data.map((result) => {
+          if (result.status === "fulfilled") {
+            return insertIntoPropertyV2(result.value);
+          } else {
+            logger.error(`Error scraping ${nextLink}: ${result.reason}`);
+            return null;
+          }
+        })
+      );
       nextLink = $('a[title="Next"]').attr("href") || null;
       if (nextLink) {
         nextLink = `${process.env.BASE_URL}${nextLink}`;
