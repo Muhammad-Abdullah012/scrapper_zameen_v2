@@ -41,24 +41,31 @@ export const scrapeHtmlPage = async (url: string) => {
 export const scrapListing = async (url: string) => {
   let nextLink: string | null = url;
   do {
-    logger.info("onPage ==> " + nextLink);
-    const mainPage = await axios.get(nextLink);
-    const $ = cheerio.load(mainPage.data);
-    $('a[aria-label="Listing link"]')
-      .each(function () {
-        const href = `${process.env.BASE_URL}${$(this).attr("href") ?? ""}`;
-        scrapeHtmlPage(href)
-          .then((data) => {
-            insertIntoPropertyV2(data);
-          })
-          .catch((error) => {
-            logger.error(`Error scraping ${href}: ${error}`);
-          });
-      })
-      .get();
-    nextLink = $('a[title="Next"]').attr("href") || null;
-    if (nextLink) {
-      nextLink = `${process.env.BASE_URL}${nextLink}`;
+    try {
+      logger.info("onPage ==> " + nextLink);
+      const mainPage = await axios.get(nextLink);
+      const $ = cheerio.load(mainPage.data);
+      const promises = $('a[aria-label="Listing link"]')
+        .map(async function () {
+          return scrapeHtmlPage(
+            `${process.env.BASE_URL}${$(this).attr("href") ?? ""}`
+          );
+        })
+        .get();
+      const data = await Promise.allSettled(promises);
+      data.forEach((result) => {
+        if (result.status === "fulfilled") {
+          insertIntoPropertyV2(result.value);
+        } else {
+          logger.error(`Error scraping ${nextLink}: ${result.reason}`);
+        }
+      });
+      nextLink = $('a[title="Next"]').attr("href") || null;
+      if (nextLink) {
+        nextLink = `${process.env.BASE_URL}${nextLink}`;
+      }
+    } catch (error) {
+      logger.error(`Error scraping ${nextLink}: ${error}`);
     }
   } while (nextLink != null);
 };
