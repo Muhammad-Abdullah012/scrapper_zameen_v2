@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:latest
+    restart: always
+    container_name: my_postgres_container
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: '0.5g'
+    ports:
+      - "5432:5432"
+    env_file:
+      - .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  scrapper_zameen:
+    image: scrapper_zameen_image
+    build:
+      context: .
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1.3'
+          memory: '1.5g'
+        reservations:
+          memory: '0.5g'
+    container_name: scrapper_zameen_container
+    tty: true
+    init: true
+    ipc: host
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    volumes:
+      - ./:/app
+    depends_on:
+      - postgres
+volumes:
+  postgres_data:
