@@ -1,9 +1,9 @@
 const cheerio = require("cheerio");
 const axios = require("axios").default;
 const fs = require("fs");
-const { scrapeHtmlPage, writeListingLinksToFile } = require("./scrap_helper");
+const { writeListingLinksToFile } = require("./scrap_helper");
 const { getUrl } = require("./utils");
-const { createTable } = require("./config");
+const { createTable } = require("./queries");
 const PROPERTY_TYPES = ["Homes", "Plots", "Commercial"];
 const PROPERTY_PURPOSE = ["Buy", "Rent"];
 const CITIES = ["Islamabad-3", "Karachi-2", "Lahore-1", "Rawalpindi-41"];

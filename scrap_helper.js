@@ -1,6 +1,7 @@
 const cheerio = require("cheerio");
 const axios = require("axios").default;
 const fs = require("fs");
+const { insertIntoPropertyV2 } = require("./queries");
 const { formatPrice, relativeTimeToTimestamp } = require("./utils");
 require("dotenv").config();
 
@@ -38,7 +39,6 @@ const scrapeHtmlPage = async (url) => {
 const writeListingLinksToFile = async (url, filename) => {
   let nextLink = url;
   do {
-    console.log("current page ===> ", nextLink);
     const mainPage = await axios.get(nextLink);
     const $ = cheerio.load(mainPage.data);
     const ws = fs.createWriteStream(filename, { flags: "a" });
@@ -46,7 +46,8 @@ const writeListingLinksToFile = async (url, filename) => {
       .each(async function () {
         const href = `${process.env.BASE_URL}${$(this).attr("href")}`;
         console.log("scraping href ==> ", href);
-        const data = await scrapeHtmlPage(href)
+        const data = await scrapeHtmlPage(href);
+        insertIntoPropertyV2(data);
         ws.write(`${href}\n`);
       })
       .get();
