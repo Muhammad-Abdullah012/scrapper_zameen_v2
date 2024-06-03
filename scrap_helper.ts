@@ -1,11 +1,13 @@
 import * as cheerio from "cheerio";
-const axios = require("axios").default;
-const fs = require("fs");
+import axios from "axios";
 import { insertIntoPropertyV2 } from "./queries";
 import { formatPrice, relativeTimeToTimestamp } from "./utils";
+import { logger as mainLogger } from "./config";
 require("dotenv").config();
+const logger = mainLogger.child({ file: "scrap_helper" });
 
 export const scrapeHtmlPage = async (url: string) => {
+  logger.info(`scraping ${url}`);
   const result = await axios.get(url);
   const $ = cheerio.load(result.data);
   $("style").remove();
@@ -36,27 +38,21 @@ export const scrapeHtmlPage = async (url: string) => {
   return keyValue;
 };
 
-export const writeListingLinksToFile = async (
-  url: string,
-  filename: string
-) => {
+export const scrapListing = async (url: string) => {
   let nextLink: string | null = url;
   do {
+    logger.info("onPage ==> " + nextLink);
     const mainPage = await axios.get(nextLink);
     const $ = cheerio.load(mainPage.data);
-    const ws = fs.createWriteStream(filename, { flags: "a" });
     $('a[aria-label="Listing link"]')
       .each(function () {
-        const href = `${process.env.BASE_URL}${$(this).attr("href")}`;
-        console.log("scraping href ==> ", href);
+        const href = `${process.env.BASE_URL}${$(this).attr("href") ?? ""}`;
         scrapeHtmlPage(href)
           .then((data) => {
             insertIntoPropertyV2(data);
-            ws.write(`${href}\n`);
           })
           .catch((error) => {
-            console.log("error scraping href ==> ", href);
-            console.log(error);
+            logger.error(`Error scraping ${href}: ${error}`);
           });
       })
       .get();
