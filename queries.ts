@@ -69,14 +69,45 @@ export const alreadyExists = async (url: string) => {
   return result.rowCount != null && result.rowCount > 0;
 };
 
-export const insertIntoPropertyV2 = (data: IProperty_V2_Data) => {
-  alreadyExists(data.url ?? "").then((exists) => {
+export const insertIntoPropertyV2 = async (data: IProperty_V2_Data) => {
+  try {
+    const exists = await alreadyExists(data.url ?? "");
     if (exists) {
-      logger.info(data.url + " already exists in table!");
-      return;
+      logger.info(data.url + " already exists in table, Updating!");
+      await pool.query(
+        `UPDATE property_v2 
+         SET "desc" = $1, 
+             header = $2, 
+             type = $3, 
+             price = $4, 
+             location = $5, 
+             bath = $6, 
+             area = $7, 
+             purpose = $8, 
+             bedroom = $9,
+             initial_amount = $10, 
+             monthly_installment = $11, 
+             remaining_installments = $12 
+         WHERE url = $13`,
+        [
+          data.desc,
+          data.header,
+          data.type,
+          data.price,
+          data.location,
+          data.bath,
+          data.area,
+          data.purpose,
+          data.bedroom,
+          data.initial_amount,
+          data.monthly_installment,
+          data.remaining_installments,
+          data.url,
+        ]
+      );
     } else {
       logger.debug(data.url + " does not exist in table, inserting!");
-      pool.query(
+      await pool.query(
         `INSERT INTO property_v2 ("desc", header, type, price, location, bath, area, purpose, bedroom, added, initial_amount, monthly_installment, remaining_installments, url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
         [
           data.desc,
@@ -93,16 +124,10 @@ export const insertIntoPropertyV2 = (data: IProperty_V2_Data) => {
           data.monthly_installment,
           data.remaining_installments,
           data.url,
-        ],
-        (err, res) => {
-          if (err) {
-            logger.error(`error inserting into table: ${err}`);
-            return;
-          } else {
-            logger.debug(data.url + " inserted into table");
-          }
-        }
+        ]
       );
     }
-  });
+  } catch (err) {
+    logger.error(`error while inserting or updating: ${err}`);
+  }
 };
