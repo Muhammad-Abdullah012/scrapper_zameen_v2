@@ -4,6 +4,35 @@ import { logger as mainLogger } from "./config";
 
 const logger = mainLogger.child({ file: "queries" });
 
+export const addUpdatedAtTrigger = (tableName: string) => {
+  pool.query(
+    `CREATE OR REPLACE FUNCTION update_updated_at()
+  RETURNS TRIGGER AS $$
+  BEGIN
+      NEW.updated_at = CURRENT_TIMESTAMP;
+      RETURN NEW;
+  END;
+  $$ LANGUAGE plpgsql;`,
+    (err, res) => {
+      if (err) {
+        logger.error(`error creating trigger: ${err}`);
+        return;
+      }
+      pool.query(
+        `CREATE OR REPLACE TRIGGER update_table_trigger BEFORE
+      UPDATE ON ${tableName} FOR EACH ROW
+      EXECUTE PROCEDURE update_updated_at ();`,
+        (err, res) => {
+          if (err) {
+            logger.error(`error creating trigger: ${err}`);
+            return;
+          }
+          logger.debug(`trigger created for table ${tableName}`);
+        }
+      );
+    }
+  );
+};
 export const createTable = () => {
   pool.query(
     `CREATE TABLE IF NOT EXISTS property_v2 (
