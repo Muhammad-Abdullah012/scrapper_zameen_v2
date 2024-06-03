@@ -1,4 +1,7 @@
+import { logger as mainLogger } from "./config";
 require("dotenv").config();
+
+const logger = mainLogger.child({ file: "utils" });
 const mapping: { [key: string]: number } = {
   Crore: 7,
   Lakh: 5,
@@ -9,10 +12,12 @@ const mapping: { [key: string]: number } = {
 export const formatPrice = (price: string) => {
   const parts = price.split(" ");
   if (parts.length !== 2) {
+    logger.debug(`price format is not correct: ${price}`);
     return 0;
   }
   const match = parts[0].match(/\d+(\.\d+)?/);
   if (!match) {
+    logger.debug(`price format is not correct: ${price}`);
     return 0;
   }
   const numericPart = match[0];
@@ -47,7 +52,8 @@ export const relativeTimeToTimestamp = (relativeTime: string) => {
     // Assuming a month has 30 days for simplicity
     timestamp = new Date(now.getTime() - monthsAgo * 2592000000);
   } else {
-    throw new Error("Unsupported time format");
+    logger.debug(`relative time format is not correct: ${relativeTime}`);
+    return 0;
   }
 
   return parseInt((timestamp.getTime() / 1000).toString());
