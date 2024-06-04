@@ -69,6 +69,20 @@ export const alreadyExists = async (url: string) => {
   return result.rowCount != null && result.rowCount > 0;
 };
 
+export const lastAdded = async () => {
+  try {
+    const result = await pool.query(
+      `SELECT added FROM property_v2 ORDER BY added DESC LIMIT 1;`
+    );
+    return result.rowCount != null && result.rowCount > 0
+      ? result.rows[0].added
+      : 0;
+  } catch (error) {
+    logger.error(`error getting last added: ${error}`);
+    return 0;
+  }
+};
+
 export const insertIntoPropertyV2 = async (data: IProperty_V2_Data) => {
   try {
     const exists = await alreadyExists(data.url ?? "");
@@ -87,8 +101,9 @@ export const insertIntoPropertyV2 = async (data: IProperty_V2_Data) => {
              bedroom = $9,
              initial_amount = $10, 
              monthly_installment = $11, 
-             remaining_installments = $12 
-         WHERE url = $13`,
+             remaining_installments = $12,
+             added = $13
+         WHERE url = $14`,
         [
           data.desc,
           data.header,
@@ -102,6 +117,7 @@ export const insertIntoPropertyV2 = async (data: IProperty_V2_Data) => {
           data.initial_amount,
           data.monthly_installment,
           data.remaining_installments,
+          data.added,
           data.url,
         ]
       );

@@ -38,7 +38,7 @@ export const scrapeHtmlPage = async (url: string) => {
   return keyValue;
 };
 
-export const scrapListing = async (url: string) => {
+export const scrapListing = async (url: string, lastAdded: number) => {
   let nextLink: string | null = url;
   do {
     try {
@@ -55,14 +55,22 @@ export const scrapListing = async (url: string) => {
       const data = await Promise.allSettled(promises);
       await Promise.allSettled(
         data.map((result) => {
-          if (result.status === "fulfilled") {
+          if (result.status === "fulfilled" && result.value.added > lastAdded) {
             return insertIntoPropertyV2(result.value);
           } else {
-            logger.error(`Error scraping ${nextLink}: ${result.reason}`);
+            if (result.status === "rejected")
+              logger.error(`Error scraping ${nextLink}: ${result.reason}`);
             return null;
           }
         })
       );
+      const containsOldValue = data.some(
+        (result) =>
+          result.status === "fulfilled" && result.value.added <= lastAdded
+      );
+      if (containsOldValue) {
+        break;
+      }
       nextLink = $('a[title="Next"]').attr("href") || null;
       if (nextLink) {
         nextLink = `${process.env.BASE_URL}${nextLink}`;
