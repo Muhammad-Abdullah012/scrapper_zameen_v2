@@ -9,29 +9,31 @@ const PROPERTY_TYPES = ["Homes", "Plots", "Commercial"];
 const PROPERTY_PURPOSE = ["Buy", "Rent"];
 const CITIES = ["Islamabad-3", "Karachi-2", "Lahore-1", "Rawalpindi-41"];
 
-const initDb = () => {
-  createTable().then(() => {
-    addUpdatedAtTrigger("property_v2");
-  });
+const initDb = async () => {
+  await createTable();
+  addUpdatedAtTrigger("property_v2");
 };
 (async () => {
   try {
-    initDb();
+    await initDb();
     const LAST_ADDED = await lastAdded();
+    const scrapingTasks: Promise<void>[] = [];
     for (const city of CITIES) {
       for (const propertyType of PROPERTY_TYPES) {
         for (const purpose of PROPERTY_PURPOSE) {
-          try {
-            const url = getUrl(propertyType, city, purpose);
-            await scrapListing(url, LAST_ADDED);
-          } catch (err) {
-            logger.error(
-              `Error scraping ${propertyType}, ${city}, ${purpose}: ${err}`
-            );
-          }
+          scrapingTasks.push(
+            scrapListing(getUrl(propertyType, city, purpose), LAST_ADDED).catch(
+              (err) => {
+                logger.error(
+                  `Error scraping ${propertyType}, ${city}, ${purpose}: ${err}`
+                );
+              }
+            )
+          );
         }
       }
     }
+    await Promise.allSettled(scrapingTasks);
   } catch (err) {
     logger.error(err);
   }
