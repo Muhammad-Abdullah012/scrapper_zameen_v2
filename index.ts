@@ -1,7 +1,7 @@
 import { scrapListing } from "./scrap_helper";
 import { getUrl } from "./utils";
 import { logger as mainLogger } from "./config";
-import { addUpdatedAtTrigger, createTable } from "./queries";
+import { addUpdatedAtTrigger, createTable, lastAdded } from "./queries";
 
 const logger = mainLogger.child({ file: "index" });
 
@@ -17,12 +17,13 @@ const initDb = () => {
 (async () => {
   try {
     initDb();
+    const LAST_ADDED = await lastAdded();
     for (const city of CITIES) {
       for (const propertyType of PROPERTY_TYPES) {
         for (const purpose of PROPERTY_PURPOSE) {
           try {
             const url = getUrl(propertyType, city, purpose);
-            await scrapListing(url);
+            await scrapListing(url, LAST_ADDED);
           } catch (err) {
             logger.error(
               `Error scraping ${propertyType}, ${city}, ${purpose}: ${err}`
