@@ -31,7 +31,7 @@ jobs:
         run: |
           scp -i <(echo "$EC2_PRIVATE_KEY") -o StrictHostKeyChecking=no $(pwd)/scripts/create_directory.sh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~
           ssh -i <(echo "$EC2_PRIVATE_KEY") -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "chmod +x create_directory.sh && ./create_directory.sh $REPO_NAME && ./create_directory.sh $REPO_NAME/scripts"
-          scp -i <(echo "$EC2_PRIVATE_KEY") -o StrictHostKeyChecking=no {} ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/$REPO_NAME
+          scp -i -r <(echo "$EC2_PRIVATE_KEY") -o StrictHostKeyChecking=no $(pwd) ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/$REPO_NAME
           ssh -i <(echo "$EC2_PRIVATE_KEY") -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "cd $REPO_NAME/scripts && chmod +x ./*.sh"
           #   scp -i ec2_private_key.pem -o StrictHostKeyChecking=no $(pwd)/scripts/* ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/$REPO_NAME/scripts
       - name: Deploy to EC2
