@@ -1,4 +1,5 @@
-import { scrapListing } from "./scrap_helper";
+import puppeteer, { Browser } from "puppeteer";
+import { scrapListing, scrapStoriesListings } from "./scrap_helper";
 import { getUrl } from "./utils";
 import { logger as mainLogger } from "./config";
 import { addUpdatedAtTrigger, createTable, lastAdded } from "./queries";
@@ -14,9 +15,11 @@ const initDb = async () => {
   addUpdatedAtTrigger("property_v2");
 };
 (async () => {
+  let browser: Browser | null = null;
   try {
     await initDb();
     const LAST_ADDED = await lastAdded();
+    browser = await puppeteer.launch();
     const scrapingTasks: Promise<void>[] = [];
     for (const city of CITIES) {
       for (const propertyType of PROPERTY_TYPES) {
@@ -30,11 +33,19 @@ const initDb = async () => {
               }
             )
           );
+          await scrapStoriesListings(
+            getUrl(propertyType, city, purpose),
+            browser
+          );
         }
       }
     }
     await Promise.allSettled(scrapingTasks);
   } catch (err) {
     logger.error(err);
+  } finally {
+    if (browser) {
+      browser.close();
+    }
   }
 })();
