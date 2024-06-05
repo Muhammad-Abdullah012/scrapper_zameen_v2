@@ -1,0 +1,40 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create EC2 private key file
+        shell: bash
+        env:
+          EC2_PRIVATE_KEY: ${{ secrets.EC2_PRIVATE_KEY }}
+        run: |
+          echo "$EC2_PRIVATE_KEY" > ec2_private_key.pem
+          chmod 400 "ec2_private_key.pem"
+      - name: Create env file
+        shell: bash
+        env:
+          EC2_ENV_FILE: ${{ secrets.CODE_ENV_FILE }}
+        run: |
+          echo "$EC2_ENV_FILE" > .env
+      - name: Copy Files to EC2
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          scp -i ec2_private_key.pem -o StrictHostKeyChecking=no $(pwd)/scripts/create_directory.sh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~
+          ssh -i ec2_private_key.pem -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "chmod +x create_directory.sh && ./create_directory.sh $REPO_NAME && ./create_directory.sh $REPO_NAME/scripts"
+          scp -i ec2_private_key.pem -o StrictHostKeyChecking=no $(pwd)/* ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/$REPO_NAME
+          scp -i ec2_private_key.pem -o StrictHostKeyChecking=no $(pwd)/scripts/* ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/$REPO_NAME/scripts
+          ssh -i ec2_private_key.pem -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "cd $REPO_NAME/scripts && chmod +x ./*.sh"
+      - name: Deploy to EC2
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          ssh -i ec2_private_key.pem -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "cd $REPO_NAME && sudo docker compose down && sudo docker image prune -f && sudo docker builder prune -f && sudo docker compose up -d --build && echo 'Done'"
