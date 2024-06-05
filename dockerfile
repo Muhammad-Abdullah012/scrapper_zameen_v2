@@ -12,4 +12,4 @@ RUN pnpm install
 
 COPY . /app
 
-CMD ["pnpm", "run", "start-cronjob"]
+CMD ["pnpm", "run", "start-server"]
