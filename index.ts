@@ -19,7 +19,7 @@ const initDb = async () => {
   try {
     await initDb();
     const LAST_ADDED = await lastAdded();
-    browser = await puppeteer.launch();
+    browser = await puppeteer.launch({ args: ["--no-sandbox"] });
     const scrapingTasks: Promise<void>[] = [];
     for (const city of CITIES) {
       for (const propertyType of PROPERTY_TYPES) {
