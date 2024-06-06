@@ -30,7 +30,6 @@ jobs:
           REPO_NAME: ${{ github.event.repository.name }}
           EC2_PRIVATE_KEY: ${{ secrets.EC2_PRIVATE_KEY }}
         run: |
-          ssh -i ec2_private_key.pem -o StrictHostKeyChecking=no ls
           scp -i ec2_private_key.pem -o StrictHostKeyChecking=no $(pwd)/scripts/create_directory.sh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~
           ssh -i ec2_private_key.pem -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "chmod +x create_directory.sh && ./create_directory.sh $REPO_NAME && ./create_directory.sh $REPO_NAME/scripts"
           scp -i ec2_private_key.pem -o StrictHostKeyChecking=no $(pwd) ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/$REPO_NAME
