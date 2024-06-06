@@ -21,5 +21,6 @@ COPY pnpm-lock.yaml /app/
 RUN pnpm install
 
 COPY . /app
+USER node
 
 CMD ["pnpm", "run", "start-server"]
