@@ -25,6 +25,7 @@ jobs:
         run: |
           echo "$EC2_ENV_FILE" > .env
       - name: Copy Files to EC2
+        shell: bash
         env:
           REPO_NAME: ${{ github.event.repository.name }}
           EC2_PRIVATE_KEY: ${{ secrets.EC2_PRIVATE_KEY }}
