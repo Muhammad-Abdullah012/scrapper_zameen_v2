@@ -18,29 +18,35 @@ const initDb = async () => {
   let browser: Browser | null = null;
   try {
     await initDb();
-    const LAST_ADDED = await lastAdded();
-    browser = await puppeteer.launch({ args: ["--no-sandbox"] });
     const scrapingTasks: Promise<void>[] = [];
     for (const city of CITIES) {
+      const LAST_ADDED = await lastAdded(city.split("-")[0]);
       for (const propertyType of PROPERTY_TYPES) {
         for (const purpose of PROPERTY_PURPOSE) {
+          const url = getUrl(propertyType, city, purpose);
           scrapingTasks.push(
-            scrapListing(getUrl(propertyType, city, purpose), LAST_ADDED).catch(
-              (err) => {
-                logger.error(
-                  `Error scraping ${propertyType}, ${city}, ${purpose}: ${err}`
-                );
-              }
-            )
-          );
-          await scrapStoriesListings(
-            getUrl(propertyType, city, purpose),
-            browser
+            scrapListing(url, LAST_ADDED).catch((err) => {
+              logger.error(`Error scraping ${url}: ${err}`);
+            })
           );
         }
       }
     }
     await Promise.allSettled(scrapingTasks);
+    logger.info("Scraping stories...");
+    browser = await puppeteer.launch({ args: ["--no-sandbox"] });
+    for (const city of CITIES) {
+      for (const propertyType of PROPERTY_TYPES) {
+        for (const purpose of PROPERTY_PURPOSE) {
+          const url = getUrl(propertyType, city, purpose);
+          try {
+            await scrapStoriesListings(url, browser);
+          } catch (err) {
+            logger.error(`Error scraping story ${url}: ${err}`);
+          }
+        }
+      }
+    }
   } catch (err) {
     logger.error(err);
   } finally {

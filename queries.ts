@@ -69,10 +69,11 @@ export const alreadyExists = async (url: string) => {
   return result.rowCount != null && result.rowCount > 0;
 };
 
-export const lastAdded = async () => {
+export const lastAdded = async (city: string) => {
   try {
     const result = await pool.query(
-      `SELECT added FROM property_v2 ORDER BY added DESC LIMIT 1;`
+      `SELECT added FROM property_v2 WHERE location ILIKE $1 ORDER BY added DESC LIMIT 1;`,
+      [`%${city}%`]
     );
     return result.rowCount != null && result.rowCount > 0
       ? result.rows[0].added
