@@ -18,32 +18,20 @@ const initDb = async () => {
   let browser: Browser | null = null;
   try {
     await initDb();
-    const scrapingTasks: Promise<void>[] = [];
+    browser = await puppeteer.launch({ args: ["--no-sandbox"] });
     for (const city of CITIES) {
       const LAST_ADDED = await lastAdded(city.split("-")[0]);
       for (const propertyType of PROPERTY_TYPES) {
         for (const purpose of PROPERTY_PURPOSE) {
           const url = getUrl(propertyType, city, purpose);
-          scrapingTasks.push(
+          await Promise.allSettled([
             scrapListing(url, LAST_ADDED).catch((err) => {
               logger.error(`Error scraping ${url}: ${err}`);
-            })
-          );
-        }
-      }
-    }
-    await Promise.allSettled(scrapingTasks);
-    logger.info("Scraping stories...");
-    browser = await puppeteer.launch({ args: ["--no-sandbox"] });
-    for (const city of CITIES) {
-      for (const propertyType of PROPERTY_TYPES) {
-        for (const purpose of PROPERTY_PURPOSE) {
-          const url = getUrl(propertyType, city, purpose);
-          try {
-            await scrapStoriesListings(url, browser);
-          } catch (err) {
-            logger.error(`Error scraping story ${url}: ${err}`);
-          }
+            }),
+            scrapStoriesListings(url, browser).catch((err) => {
+              logger.error(`Error scraping story ${url}: ${err}`);
+            }),
+          ]);
         }
       }
     }
