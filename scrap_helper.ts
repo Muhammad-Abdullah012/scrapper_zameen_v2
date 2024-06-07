@@ -19,10 +19,12 @@ export const scrapeHtmlPage = async (url: string) => {
     .concat($('div[aria-label="Property header" i]').text());
 
   const description = $('div[aria-label="Property description text" i]').text();
+  const coverPhotoUrl = $('img[aria-label="Cover Photo" i]').attr("src");
   const keyValue: { [key: string]: any } = {
     header,
     desc: description,
     url,
+    coverPhotoUrl,
   };
   $('ul[aria-label="Property details" i] li').each(function (i, elem) {
     const key = $(this).find("span._3af7fa95").text();

@@ -5,6 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc",
     "start": "tsc && node dist/index.js",
     "start-cronjob": "tsc && node dist/cronjob.js",
     "start-server": "tsc && node dist/server.js"

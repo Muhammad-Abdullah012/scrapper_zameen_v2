@@ -52,6 +52,7 @@ export const createTable = async () => {
         monthly_installment VARCHAR(255) NULL,
         remaining_installments VARCHAR(255) NULL,
         url TEXT,
+        cover_photo_url TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );`
@@ -103,7 +104,8 @@ export const insertIntoPropertyV2 = async (data: IProperty_V2_Data) => {
              initial_amount = $10, 
              monthly_installment = $11, 
              remaining_installments = $12,
-             added = $13
+             added = $13,
+             cover_photo_url = $15
          WHERE url = $14`,
         [
           data.desc,
@@ -120,12 +122,13 @@ export const insertIntoPropertyV2 = async (data: IProperty_V2_Data) => {
           data.remaining_installments,
           data.added,
           data.url,
+          data.coverPhotoUrl,
         ]
       );
     } else {
       logger.debug(data.url + " does not exist in table, inserting!");
       await pool.query(
-        `INSERT INTO property_v2 ("desc", header, type, price, location, bath, area, purpose, bedroom, added, initial_amount, monthly_installment, remaining_installments, url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+        `INSERT INTO property_v2 ("desc", header, type, price, location, bath, area, purpose, bedroom, added, initial_amount, monthly_installment, remaining_installments, url, cover_photo_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
         [
           data.desc,
           data.header,
@@ -141,6 +144,7 @@ export const insertIntoPropertyV2 = async (data: IProperty_V2_Data) => {
           data.monthly_installment,
           data.remaining_installments,
           data.url,
+          data.coverPhotoUrl,
         ]
       );
     }
