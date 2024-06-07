@@ -13,4 +13,5 @@ export interface IProperty_V2_Data {
   monthly_installment?: string;
   remaining_installments?: string;
   url?: string;
+  coverPhotoUrl?: string;
 }
