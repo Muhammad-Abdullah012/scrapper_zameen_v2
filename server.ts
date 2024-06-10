@@ -14,7 +14,7 @@ app.get("/", (req, res) => {
   res.json("Server is running!");
 });
 
-app.post("/scrap", (req, res) => {
+app.post("/", (req, res) => {
   try {
     spawn("pnpm", ["run", "start"], {
       cwd: process.cwd(),

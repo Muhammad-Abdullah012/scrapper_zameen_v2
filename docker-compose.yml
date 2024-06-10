@@ -14,6 +14,8 @@ services:
       - .env
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
 
   scrapper_zameen:
     image: scrapper_zameen_image
@@ -32,7 +34,7 @@ services:
     init: true
     ipc: host
     ports:
-      - "3000:3000"
+      - "8080:3000"
     env_file:
       - .env
     volumes:
@@ -40,5 +42,12 @@ services:
       - /app/node_modules
     depends_on:
       - postgres
+    networks:
+      - backend
 volumes:
   postgres_data:
+
+networks:
+  backend:
+    external: true
+    name: zameen_scrapper_backend_backend
