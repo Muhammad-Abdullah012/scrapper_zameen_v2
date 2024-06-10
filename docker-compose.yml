@@ -50,4 +50,4 @@ volumes:
 networks:
   backend:
     external: true
-    name: zameen_scrapper_backend_backend
+    name: scrapper_zameen_backend_backend
