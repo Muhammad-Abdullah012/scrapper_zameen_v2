@@ -1,21 +1,22 @@
+import { QueryResult } from "pg";
 import axios, { AxiosError } from "axios";
 import { pool, logger as mainLogger } from "./config";
 
 const logger = mainLogger.child({ file: "check_availibility" });
 
 (async () => {
-  let offset = 0;
+  let lastId: number | null = null;
   const batchSize = 100;
   while (true) {
-    logger.info("offset ==> " + offset);
-    const result = await pool.query(
-      `SELECT url FROM property_v2 WHERE available = TRUE LIMIT $1 OFFSET $2;`,
-      [batchSize, offset]
+    logger.info("lastId ==> " + lastId);
+    const result: QueryResult<any> = await pool.query(
+      `SELECT id, url FROM property_v2 WHERE available = TRUE AND id > $2 ORDER BY id ASC LIMIT $1;`,
+      [batchSize, lastId ?? 0]
     );
-    offset += batchSize;
     if (result.rowCount == null || result.rowCount === 0) break;
+    lastId = result.rows[result.rowCount - 1].id;
     const promises = await Promise.allSettled(
-      result.rows.map(({ url }) => axios.get(url))
+      result.rows.map(({ url }: { url: string }) => axios.get(url))
     );
     const urlsToUpdate = promises
       .map((promise) => {
