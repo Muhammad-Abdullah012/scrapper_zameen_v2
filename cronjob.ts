@@ -11,3 +11,14 @@ const job = new CronJob(
   null, // onComplete
   true // start
 );
+
+const job2 = new CronJob(
+  "0 20 * * *",
+  function () {
+    spawn("pnpm", ["run", "start-check-availibility"], {
+      stdio: "inherit",
+    });
+  }, // onTick
+  null, // onComplete
+  true // start
+);
