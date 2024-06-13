@@ -4,6 +4,7 @@ import { Browser, Page } from "puppeteer";
 import { insertIntoPropertyV2 } from "./queries";
 import { formatPrice, relativeTimeToTimestamp } from "./utils";
 import { logger as mainLogger } from "./config";
+import { Feature } from "./types";
 require("dotenv").config();
 const logger = mainLogger.child({ file: "scrap_helper" });
 
@@ -38,6 +39,25 @@ export const scrapeHtmlPage = async (url: string) => {
     }
   });
 
+  const $amenities = $("div[id='amenities-scrollable']");
+  const features: Feature[] = [];
+
+  $($amenities)
+    .find("div._040e4f65")
+    .each(function (index, element) {
+      const category = $(element).find("div.f5c4d39a").text().trim();
+      const featureList: string[] = [];
+
+      $(element)
+        .find("div.ef6b6a44 > div.c3b151ea")
+        .each((_, featureElement) => {
+          const feature = $(featureElement).find("div.e2a20506").text().trim();
+          featureList.push(feature);
+        });
+
+      features.push({ category, features: featureList });
+    });
+  keyValue["features"] = features;
   return keyValue;
 };
 

@@ -14,4 +14,10 @@ export interface IProperty_V2_Data {
   remaining_installments?: string;
   url?: string;
   coverPhotoUrl?: string;
+  features?: Feature[];
+}
+
+export interface Feature {
+  category: string;
+  features: string[];
 }
