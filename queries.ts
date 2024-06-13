@@ -53,6 +53,8 @@ export const createTable = async () => {
         remaining_installments VARCHAR(255) NULL,
         url TEXT,
         cover_photo_url TEXT,
+        available BOOLEAN DEFAULT TRUE,
+        features JSONB DEFAULT '[]'::jsonb,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );`
