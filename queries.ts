@@ -105,7 +105,8 @@ export const insertIntoPropertyV2 = async (data: IProperty_V2_Data) => {
              monthly_installment = $11, 
              remaining_installments = $12,
              added = $13,
-             cover_photo_url = $15
+             cover_photo_url = $15,
+             features = $16::jsonb
          WHERE url = $14`,
         [
           data.desc,
@@ -123,12 +124,13 @@ export const insertIntoPropertyV2 = async (data: IProperty_V2_Data) => {
           data.added,
           data.url,
           data.coverPhotoUrl,
+          JSON.stringify(data.features),
         ]
       );
     } else {
       logger.debug(data.url + " does not exist in table, inserting!");
       await pool.query(
-        `INSERT INTO property_v2 ("desc", header, type, price, location, bath, area, purpose, bedroom, added, initial_amount, monthly_installment, remaining_installments, url, cover_photo_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+        `INSERT INTO property_v2 ("desc", header, type, price, location, bath, area, purpose, bedroom, added, initial_amount, monthly_installment, remaining_installments, url, cover_photo_url, features) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb)`,
         [
           data.desc,
           data.header,
@@ -145,6 +147,7 @@ export const insertIntoPropertyV2 = async (data: IProperty_V2_Data) => {
           data.remaining_installments,
           data.url,
           data.coverPhotoUrl,
+          JSON.stringify(data.features),
         ]
       );
     }
