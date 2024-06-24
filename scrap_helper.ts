@@ -28,8 +28,21 @@ export const scrapeHtmlPage = async (url: string) => {
     coverPhotoUrl,
   };
   $('ul[aria-label="Property details" i] li').each(function (i, elem) {
-    const key = $(this).find("span._3af7fa95").text();
-    const value = $(this).find("span._812aa185").text();
+    const spans = $(this)
+      .children("span")
+      .filter(function () {
+        return $(this).text().trim() !== "";
+      });
+    const key = $(spans[0]).text();
+    const value = spans
+      .slice(1)
+      .map(function () {
+        return $(this).text();
+      })
+      .get()
+      .join(" ");
+    // const key = $(this).find("span._3af7fa95").text();
+    // const value = $(this).find("span._812aa185").text();
     if (key.toLowerCase() === "price") {
       keyValue[key.toLowerCase()] = formatPrice(value);
     } else if (key.toLowerCase() === "added") {
