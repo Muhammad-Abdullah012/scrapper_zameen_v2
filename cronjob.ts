@@ -8,9 +8,9 @@ const job = new CronJob(
       stdio: "inherit",
     });
     task1.on("close", (code) => {
-      const task2 = spawn("pnpm", ["run", "start-check-availibility"], {
-        stdio: "inherit",
-      });
+      // const task2 = spawn("pnpm", ["run", "start-check-availibility"], {
+      //   stdio: "inherit",
+      // });
     });
   }, // onTick
   null, // onComplete
