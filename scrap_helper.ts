@@ -41,7 +41,6 @@ export const scrapeHtmlPage = async (url: string) => {
       })
       .get()
       .join(" ");
-    keyValue[key.toLowerCase()] = value;
     // const key = $(this).find("span._3af7fa95").text();
     // const value = $(this).find("span._812aa185").text();
     if (key.toLowerCase() === "price") {
