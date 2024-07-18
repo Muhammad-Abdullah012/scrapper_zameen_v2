@@ -108,7 +108,11 @@ export const formatBedroom = (bedroom: string) => {
 };
 
 export const formatPurpose = (purpose: string) => {
-  return purpose.toUpperCase();
+  return purpose.toLowerCase().replace(/\s/g, "_");
+};
+
+export const formatType = (type: string) => {
+  return formatPurpose(type);
 };
 
 export const formatKeyValue = (key: string, value: string) => {
@@ -119,6 +123,7 @@ export const formatKeyValue = (key: string, value: string) => {
     bath: formatBath,
     bedroom: formatBedroom,
     purpose: formatPurpose,
+    type: formatType,
   };
 
   if (formatters[key as keyof typeof formatters]) {
