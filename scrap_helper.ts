@@ -2,7 +2,7 @@ import * as cheerio from "cheerio";
 import axios from "axios";
 import { Browser, Page } from "puppeteer";
 import { insertIntoPropertyV2 } from "./queries";
-import { formatPrice, relativeTimeToTimestamp } from "./utils";
+import { formatKeyValue } from "./utils";
 import { logger as mainLogger } from "./config";
 import { Feature } from "./types";
 require("dotenv").config();
@@ -43,13 +43,8 @@ export const scrapeHtmlPage = async (url: string) => {
       .join(" ");
     // const key = $(this).find("span._3af7fa95").text();
     // const value = $(this).find("span._812aa185").text();
-    if (key.toLowerCase() === "price") {
-      keyValue[key.toLowerCase()] = formatPrice(value);
-    } else if (key.toLowerCase() === "added") {
-      keyValue[key.toLowerCase()] = relativeTimeToTimestamp(value);
-    } else {
-      keyValue[key.split("(")[0].toLowerCase().replace(/\s+/g, "_")] = value;
-    }
+    const lowerCaseKey = key.split("(")[0].toLowerCase().replace(/\s+/g, "_");
+    keyValue[lowerCaseKey] = formatKeyValue(lowerCaseKey, value);
   });
 
   const $amenities = $("div[id='amenities-scrollable']");
@@ -74,7 +69,11 @@ export const scrapeHtmlPage = async (url: string) => {
   return keyValue;
 };
 
-export const scrapStoriesListings = async (url: string, browser: Browser) => {
+export const scrapStoriesListings = async (
+  url: string,
+  browser: Browser,
+  cityId: number
+) => {
   let nextLink: string | null = url;
   let page: Page | null = null;
   const storiesUrls: string[] = [];
@@ -112,7 +111,7 @@ export const scrapStoriesListings = async (url: string, browser: Browser) => {
   await Promise.allSettled(
     data.map((result) => {
       if (result.status === "fulfilled") {
-        return insertIntoPropertyV2(result.value);
+        return insertIntoPropertyV2(result.value, cityId);
       } else {
         if (result.status === "rejected")
           logger.error(`Error scraping ${nextLink}: ${result.reason}`);
@@ -122,7 +121,11 @@ export const scrapStoriesListings = async (url: string, browser: Browser) => {
   );
 };
 
-export const scrapListing = async (url: string, lastAdded: number) => {
+export const scrapListing = async (
+  url: string,
+  lastAdded: number,
+  cityId: number
+) => {
   let nextLink: string | null = url;
   do {
     try {
@@ -140,7 +143,7 @@ export const scrapListing = async (url: string, lastAdded: number) => {
       await Promise.allSettled(
         data.map((result) => {
           if (result.status === "fulfilled" && result.value.added > lastAdded) {
-            return insertIntoPropertyV2(result.value);
+            return insertIntoPropertyV2(result.value, cityId);
           } else {
             if (result.status === "rejected")
               logger.error(`Error scraping ${nextLink}: ${result.reason}`);

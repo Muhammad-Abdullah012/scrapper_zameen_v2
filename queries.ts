@@ -3,80 +3,94 @@ import { IProperty_V2_Data } from "./types";
 import { logger as mainLogger } from "./config";
 
 const logger = mainLogger.child({ file: "queries" });
+const PROPERTIES_TABLE_NAME = "properties";
+const CITIES_TABLE_NAME = "cities";
+const LOCATIONS_TABLE_NAME = "locations";
 
-export const addUpdatedAtTrigger = (tableName: string) => {
-  pool.query(
-    `CREATE OR REPLACE FUNCTION update_updated_at()
-  RETURNS TRIGGER AS $$
-  BEGIN
-      NEW.updated_at = CURRENT_TIMESTAMP;
-      RETURN NEW;
-  END;
-  $$ LANGUAGE plpgsql;`,
-    (err, res) => {
-      if (err) {
-        logger.error(`error creating trigger: ${err}`);
-        return;
-      }
-      pool.query(
-        `CREATE OR REPLACE TRIGGER update_table_trigger BEFORE
-      UPDATE ON ${tableName} FOR EACH ROW
-      EXECUTE PROCEDURE update_updated_at ();`,
-        (err, res) => {
-          if (err) {
-            logger.error(`error creating trigger: ${err}`);
-            return;
-          }
-          logger.debug(`trigger created for table ${tableName}`);
-        }
-      );
-    }
-  );
-};
-export const createTable = async () => {
+export const insertIntoCity = async (city: string) => {
+  const client = await pool.connect();
   try {
-    await pool.query(
-      `CREATE TABLE IF NOT EXISTS property_v2 (
-        id SERIAL PRIMARY KEY,
-        "desc" TEXT,
-        header TEXT,
-        type VARCHAR(255),
-        price double precision,
-        location VARCHAR(255),
-        bath VARCHAR(255),
-        area VARCHAR(255),
-        purpose VARCHAR(255),
-        bedroom VARCHAR(255),
-        added bigint DEFAULT 0,
-        initial_amount VARCHAR(255) NULL,
-        monthly_installment VARCHAR(255) NULL,
-        remaining_installments VARCHAR(255) NULL,
-        url TEXT,
-        cover_photo_url TEXT,
-        available BOOLEAN DEFAULT TRUE,
-        features JSONB DEFAULT '[]'::jsonb,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );`
+    await client.query("BEGIN");
+
+    const insertResult = await client.query(
+      `INSERT INTO ${CITIES_TABLE_NAME} (name)
+       VALUES ($1)
+       ON CONFLICT (name) DO NOTHING
+       RETURNING id;`,
+      [city]
     );
-    logger.debug("table created!");
-  } catch (err) {
-    logger.error(`error creating table: ${err}`);
+
+    let cityId;
+    if (insertResult.rows.length > 0) {
+      cityId = insertResult.rows[0].id;
+    } else {
+      const selectResult = await client.query(
+        `SELECT id FROM ${CITIES_TABLE_NAME} WHERE name = $1;`,
+        [location]
+      );
+      cityId = selectResult.rows[0]?.id;
+    }
+
+    await client.query("COMMIT");
+    return cityId;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    logger.error(`error inserting into ${CITIES_TABLE_NAME}: ${error}`);
+    return null;
+  } finally {
+    client.release();
+  }
+};
+
+export const insertIntoLocation = async (location: string) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const insertResult = await client.query(
+      `INSERT INTO ${LOCATIONS_TABLE_NAME} (name)
+       VALUES ($1)
+       ON CONFLICT (name) DO NOTHING
+       RETURNING id;`,
+      [location]
+    );
+
+    let locationId;
+    if (insertResult.rows.length > 0) {
+      locationId = insertResult.rows[0].id;
+    } else {
+      const selectResult = await client.query(
+        `SELECT id FROM ${LOCATIONS_TABLE_NAME} WHERE name = $1;`,
+        [location]
+      );
+      locationId = selectResult.rows[0]?.id;
+    }
+
+    await client.query("COMMIT");
+
+    return locationId;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    logger.error(`error inserting into ${LOCATIONS_TABLE_NAME}: ${error}`);
+    return null;
+  } finally {
+    client.release();
   }
 };
 
 export const alreadyExists = async (url: string) => {
-  const result = await pool.query(`SELECT * FROM property_v2 WHERE url = $1`, [
-    url,
-  ]);
+  const result = await pool.query(
+    `SELECT * FROM ${PROPERTIES_TABLE_NAME} WHERE url = $1`,
+    [url]
+  );
   return result.rowCount != null && result.rowCount > 0;
 };
 
-export const lastAdded = async (city: string) => {
+export const lastAdded = async (cityId: number) => {
   try {
     const result = await pool.query(
-      `SELECT added FROM property_v2 WHERE location ILIKE $1 ORDER BY added DESC LIMIT 1;`,
-      [`%${city}%`]
+      `SELECT added FROM ${PROPERTIES_TABLE_NAME} WHERE city_id = $1 ORDER BY added DESC LIMIT 1;`,
+      [cityId]
     );
     return result.rowCount != null && result.rowCount > 0
       ? result.rows[0].added
@@ -87,18 +101,22 @@ export const lastAdded = async (city: string) => {
   }
 };
 
-export const insertIntoPropertyV2 = async (data: IProperty_V2_Data) => {
+export const insertIntoPropertyV2 = async (
+  data: IProperty_V2_Data,
+  cityId: number
+) => {
   try {
+    const locationId = await insertIntoLocation(data.location ?? "");
     const exists = await alreadyExists(data.url ?? "");
     if (exists) {
       logger.info(data.url + " already exists in table, Updating!");
       await pool.query(
-        `UPDATE property_v2 
+        `UPDATE ${PROPERTIES_TABLE_NAME} 
          SET "desc" = $1, 
              header = $2, 
              type = $3, 
              price = $4, 
-             location = $5, 
+             location_id = $5, 
              bath = $6, 
              area = $7, 
              purpose = $8, 
@@ -115,7 +133,7 @@ export const insertIntoPropertyV2 = async (data: IProperty_V2_Data) => {
           data.header,
           data.type,
           data.price,
-          data.location,
+          locationId,
           data.bath,
           data.area,
           data.purpose,
@@ -132,13 +150,13 @@ export const insertIntoPropertyV2 = async (data: IProperty_V2_Data) => {
     } else {
       logger.debug(data.url + " does not exist in table, inserting!");
       await pool.query(
-        `INSERT INTO property_v2 ("desc", header, type, price, location, bath, area, purpose, bedroom, added, initial_amount, monthly_installment, remaining_installments, url, cover_photo_url, features) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb)`,
+        `INSERT INTO ${PROPERTIES_TABLE_NAME} ("desc", header, type, price, location_id, bath, area, purpose, bedroom, added, initial_amount, monthly_installment, remaining_installments, url, cover_photo_url, features, city_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17)`,
         [
           data.desc,
           data.header,
           data.type,
           data.price,
-          data.location,
+          locationId,
           data.bath,
           data.area,
           data.purpose,
@@ -150,6 +168,7 @@ export const insertIntoPropertyV2 = async (data: IProperty_V2_Data) => {
           data.url,
           data.coverPhotoUrl,
           JSON.stringify(data.features),
+          cityId,
         ]
       );
     }
