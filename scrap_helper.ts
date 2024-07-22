@@ -13,6 +13,7 @@ export const scrapeHtmlPage = async (url: string) => {
   const result = await axios.get(url);
   const $ = cheerio.load(result.data);
   $("style").remove();
+  $("br").replaceWith("\n");
 
   const header = $("h1")
     .text()

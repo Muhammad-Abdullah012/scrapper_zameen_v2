@@ -26,7 +26,7 @@ export const insertIntoCity = async (city: string) => {
     } else {
       const selectResult = await client.query(
         `SELECT id FROM ${CITIES_TABLE_NAME} WHERE name = $1;`,
-        [location]
+        [city]
       );
       cityId = selectResult.rows[0]?.id;
     }
@@ -89,7 +89,7 @@ export const alreadyExists = async (url: string) => {
 export const lastAdded = async (cityId: number) => {
   try {
     const result = await pool.query(
-      `SELECT added FROM ${PROPERTIES_TABLE_NAME} WHERE city_id = $1 ORDER BY added DESC LIMIT 1;`,
+      `SELECT added FROM ${PROPERTIES_TABLE_NAME} WHERE city_id = $1 AND added IS NOT NULL ORDER BY added DESC LIMIT 1;`,
       [cityId]
     );
     return result.rowCount != null && result.rowCount > 0

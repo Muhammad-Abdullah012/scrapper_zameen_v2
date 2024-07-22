@@ -53,10 +53,10 @@ export const relativeTimeToTimestamp = (relativeTime: string) => {
     timestamp = new Date(now.getTime() - monthsAgo * 2592000000);
   } else {
     logger.debug(`relative time format is not correct: ${relativeTime}`);
-    return 0;
+    return null;
   }
 
-  return parseInt((timestamp.getTime() / 1000).toString());
+  return timestamp.toISOString();
 };
 
 export const getUrl = (propertyType: string, city: string, purpose: string) => {
