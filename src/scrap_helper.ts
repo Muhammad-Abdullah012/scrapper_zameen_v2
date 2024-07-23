@@ -2,7 +2,7 @@ import * as cheerio from "cheerio";
 import axios from "axios";
 import { Browser, Page } from "puppeteer";
 import { insertIntoPropertyV2 } from "./queries";
-import { formatKeyValue } from "./utils";
+import { formatKeyValue } from "./utils/utils";
 import { logger as mainLogger } from "./config";
 import { Feature } from "./types";
 require("dotenv").config();

@@ -1,4 +1,4 @@
-import { logger as mainLogger } from "./config";
+import { logger as mainLogger } from "../config";
 require("dotenv").config();
 
 const logger = mainLogger.child({ file: "utils" });

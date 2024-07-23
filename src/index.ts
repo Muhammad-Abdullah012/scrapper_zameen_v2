@@ -1,6 +1,6 @@
 import puppeteer, { Browser } from "puppeteer";
 import { scrapListing, scrapStoriesListings } from "./scrap_helper";
-import { getUrl } from "./utils";
+import { getUrl } from "./utils/utils";
 import { logger as mainLogger } from "./config";
 import { insertIntoCity, lastAdded } from "./queries";
 
