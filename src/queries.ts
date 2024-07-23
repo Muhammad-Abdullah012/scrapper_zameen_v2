@@ -112,7 +112,7 @@ export const insertIntoPropertyV2 = async (
       logger.info(data.url + " already exists in table, Updating!");
       await pool.query(
         `UPDATE ${PROPERTIES_TABLE_NAME} 
-         SET "desc" = $1, 
+         SET "description" = $1, 
              header = $2, 
              type = $3, 
              price = $4, 
@@ -150,7 +150,7 @@ export const insertIntoPropertyV2 = async (
     } else {
       logger.debug(data.url + " does not exist in table, inserting!");
       await pool.query(
-        `INSERT INTO ${PROPERTIES_TABLE_NAME} ("desc", header, type, price, location_id, bath, area, purpose, bedroom, added, initial_amount, monthly_installment, remaining_installments, url, cover_photo_url, features, city_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17)`,
+        `INSERT INTO ${PROPERTIES_TABLE_NAME} ("description", header, type, price, location_id, bath, area, purpose, bedroom, added, initial_amount, monthly_installment, remaining_installments, url, cover_photo_url, features, city_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17)`,
         [
           data.desc,
           data.header,
