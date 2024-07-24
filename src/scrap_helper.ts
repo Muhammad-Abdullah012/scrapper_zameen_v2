@@ -2,7 +2,7 @@ import * as cheerio from "cheerio";
 import axios from "axios";
 import { Browser, Page } from "puppeteer";
 import { insertIntoPropertyV2 } from "./queries";
-import { formatPrice, relativeTimeToTimestamp } from "./utils";
+import { formatKeyValue } from "./utils/utils";
 import { logger as mainLogger } from "./config";
 import { Feature } from "./types";
 require("dotenv").config();
@@ -13,6 +13,7 @@ export const scrapeHtmlPage = async (url: string) => {
   const result = await axios.get(url);
   const $ = cheerio.load(result.data);
   $("style").remove();
+  $("br").replaceWith("\n");
 
   const header = $("h1")
     .text()
@@ -43,13 +44,8 @@ export const scrapeHtmlPage = async (url: string) => {
       .join(" ");
     // const key = $(this).find("span._3af7fa95").text();
     // const value = $(this).find("span._812aa185").text();
-    if (key.toLowerCase() === "price") {
-      keyValue[key.toLowerCase()] = formatPrice(value);
-    } else if (key.toLowerCase() === "added") {
-      keyValue[key.toLowerCase()] = relativeTimeToTimestamp(value);
-    } else {
-      keyValue[key.split("(")[0].toLowerCase().replace(/\s+/g, "_")] = value;
-    }
+    const lowerCaseKey = key.split("(")[0].toLowerCase().replace(/\s+/g, "_");
+    keyValue[lowerCaseKey] = formatKeyValue(lowerCaseKey, value);
   });
 
   const $amenities = $("div[id='amenities-scrollable']");
@@ -74,7 +70,11 @@ export const scrapeHtmlPage = async (url: string) => {
   return keyValue;
 };
 
-export const scrapStoriesListings = async (url: string, browser: Browser) => {
+export const scrapStoriesListings = async (
+  url: string,
+  browser: Browser,
+  cityId: number
+) => {
   let nextLink: string | null = url;
   let page: Page | null = null;
   const storiesUrls: string[] = [];
@@ -112,7 +112,7 @@ export const scrapStoriesListings = async (url: string, browser: Browser) => {
   await Promise.allSettled(
     data.map((result) => {
       if (result.status === "fulfilled") {
-        return insertIntoPropertyV2(result.value);
+        return insertIntoPropertyV2(result.value, cityId);
       } else {
         if (result.status === "rejected")
           logger.error(`Error scraping ${nextLink}: ${result.reason}`);
@@ -122,43 +122,56 @@ export const scrapStoriesListings = async (url: string, browser: Browser) => {
   );
 };
 
-export const scrapListing = async (url: string, lastAdded: number) => {
+export const scrapListing = async (
+  url: string,
+  lastAdded: Date,
+  cityId: number
+) => {
   let nextLink: string | null = url;
+
+  const processPage = async (link: string) => {
+    logger.info("onPage ==> " + link);
+    const mainPage = await axios.get(link);
+    const $ = cheerio.load(mainPage.data);
+    const listingLinks = $('a[aria-label="Listing link"]')
+      .map((_, element) => {
+        return `${process.env.BASE_URL}${$(element).attr("href") ?? ""}`;
+      })
+      .get();
+
+    return listingLinks;
+  };
+
+  const processListing = async (listingUrl: string) => {
+    const result = await scrapeHtmlPage(listingUrl);
+    const addedDate = new Date(result.added);
+    const lastAddedDate = new Date(lastAdded);
+    const isAddedAfter = addedDate.getTime() > lastAddedDate.getTime();
+
+    if (isAddedAfter) {
+      await insertIntoPropertyV2(result, cityId);
+    }
+
+    return isAddedAfter;
+  };
+
   do {
     try {
-      logger.info("onPage ==> " + nextLink);
+      const listingLinks = await processPage(nextLink);
+      const promises = listingLinks.map(processListing);
+      const results = await Promise.allSettled(promises);
+
+      const containsOldValue = results.some(
+        (result) => result.status === "fulfilled" && result.value === false
+      );
+
+      if (containsOldValue) break;
+
       const mainPage = await axios.get(nextLink);
       const $ = cheerio.load(mainPage.data);
-      const promises = $('a[aria-label="Listing link"]')
-        .map(async function () {
-          return scrapeHtmlPage(
-            `${process.env.BASE_URL}${$(this).attr("href") ?? ""}`
-          );
-        })
-        .get();
-      const data = await Promise.allSettled(promises);
-      await Promise.allSettled(
-        data.map((result) => {
-          if (result.status === "fulfilled" && result.value.added > lastAdded) {
-            return insertIntoPropertyV2(result.value);
-          } else {
-            if (result.status === "rejected")
-              logger.error(`Error scraping ${nextLink}: ${result.reason}`);
-            return null;
-          }
-        })
-      );
-      const containsOldValue = data.some(
-        (result) =>
-          result.status === "fulfilled" && result.value.added <= lastAdded
-      );
-      if (containsOldValue) {
-        break;
-      }
-      nextLink = $('a[title="Next"]').attr("href") || null;
-      if (nextLink) {
-        nextLink = `${process.env.BASE_URL}${nextLink}`;
-      }
+      nextLink = $('a[title="Next"]').attr("href")
+        ? `${process.env.BASE_URL}${$('a[title="Next"]').attr("href")}`
+        : null;
     } catch (error) {
       logger.error(`Error scraping ${nextLink}: ${error}`);
     }
