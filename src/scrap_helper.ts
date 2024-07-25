@@ -15,11 +15,8 @@ export const scrapeHtmlPage = async (url: string) => {
   $("style").remove();
   $("br").replaceWith("\n");
 
-  const header = $("h1")
-    .text()
-    .concat("\n")
-    .concat($('div[aria-label="Property header" i]').text());
-
+  const header = $("h1").text();
+  const location = $('div[aria-label="Property header" i]').text();
   const description = $('div[aria-label="Property description text" i]').text();
   const coverPhotoUrl = $('img[aria-label="Cover Photo" i]').attr("src");
   const keyValue: { [key: string]: any } = {
@@ -67,6 +64,7 @@ export const scrapeHtmlPage = async (url: string) => {
       features.push({ category, features: featureList });
     });
   keyValue["features"] = features;
+  keyValue["location"] = location;
   return keyValue;
 };
 
