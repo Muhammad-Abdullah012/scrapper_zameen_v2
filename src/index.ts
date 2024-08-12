@@ -10,6 +10,13 @@ const PROPERTY_TYPES = ["Homes", "Plots", "Commercial"];
 const PROPERTY_PURPOSE = ["Buy", "Rent"];
 const CITIES = ["Islamabad-3", "Karachi-2", "Lahore-1", "Rawalpindi-41"];
 
+process.on("uncaughtException", (error) => {
+  logger.error(`Uncaught exception: ${error}`);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  logger.error(`Unhandled rejection: ${reason}`);
+});
 (async () => {
   let browser: Browser | null = null;
   try {
