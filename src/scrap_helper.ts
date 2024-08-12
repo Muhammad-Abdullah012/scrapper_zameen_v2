@@ -4,7 +4,7 @@ import { Browser, Page } from "puppeteer";
 import { insertIntoPropertyV2 } from "./queries";
 import { formatKeyValue } from "./utils/utils";
 import { logger as mainLogger } from "./config";
-import { Feature } from "./types";
+import { Feature, IProperty_V2_Data } from "./types";
 require("dotenv").config();
 const logger = mainLogger.child({ file: "scrap_helper" });
 
@@ -19,11 +19,13 @@ export const scrapeHtmlPage = async (url: string) => {
   const location = $('div[aria-label="Property header" i]').text();
   const description = $('div[aria-label="Property description text" i]').text();
   const coverPhotoUrl = $('img[aria-label="Cover Photo" i]').attr("src");
+  const isPostedByAgency = $('div[aria-label="Agency info" i]').length > 0;
   const keyValue: { [key: string]: any } = {
     header,
     desc: description,
     url,
     coverPhotoUrl,
+    isPostedByAgency,
   };
   $('ul[aria-label="Property details" i] li').each(function (i, elem) {
     const spans = $(this)
@@ -110,7 +112,7 @@ export const scrapStoriesListings = async (
   await Promise.allSettled(
     data.map((result) => {
       if (result.status === "fulfilled") {
-        return insertIntoPropertyV2(result.value, cityId);
+        return insertIntoPropertyV2(result.value as IProperty_V2_Data, cityId);
       } else {
         if (result.status === "rejected")
           logger.error(`Error scraping ${nextLink}: ${result.reason}`);
@@ -147,7 +149,7 @@ export const scrapListing = async (
     const isAddedAfter = addedDate.getTime() > lastAddedDate.getTime();
 
     if (isAddedAfter) {
-      await insertIntoPropertyV2(result, cityId);
+      await insertIntoPropertyV2(result as IProperty_V2_Data, cityId);
     }
 
     return isAddedAfter;

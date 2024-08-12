@@ -8,13 +8,14 @@ export interface IProperty_V2_Data {
   area?: string;
   purpose?: string;
   bedroom?: string;
-  added?: bigint;
+  added?: string;
   initial_amount?: string;
   monthly_installment?: string;
   remaining_installments?: string;
   url?: string;
   coverPhotoUrl?: string;
   features?: Feature[];
+  isPostedByAgency: boolean;
 }
 
 export interface Feature {

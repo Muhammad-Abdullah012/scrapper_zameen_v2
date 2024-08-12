@@ -126,7 +126,8 @@ export const insertIntoPropertyV2 = async (
              remaining_installments = $12,
              added = $13,
              cover_photo_url = $15,
-             features = $16::jsonb
+             features = $16::jsonb,
+             is_posted_by_agency = $17
          WHERE url = $14`,
         [
           data.desc,
@@ -145,12 +146,13 @@ export const insertIntoPropertyV2 = async (
           data.url,
           data.coverPhotoUrl,
           JSON.stringify(data.features),
+          data.isPostedByAgency,
         ]
       );
     } else {
       logger.debug(data.url + " does not exist in table, inserting!");
       await pool.query(
-        `INSERT INTO ${PROPERTIES_TABLE_NAME} ("description", header, type, price, location_id, bath, area, purpose, bedroom, added, initial_amount, monthly_installment, remaining_installments, url, cover_photo_url, features, city_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17)`,
+        `INSERT INTO ${PROPERTIES_TABLE_NAME} ("description", header, type, price, location_id, bath, area, purpose, bedroom, added, initial_amount, monthly_installment, remaining_installments, url, cover_photo_url, features, city_id, is_posted_by_agency) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18)`,
         [
           data.desc,
           data.header,
@@ -169,6 +171,7 @@ export const insertIntoPropertyV2 = async (
           data.coverPhotoUrl,
           JSON.stringify(data.features),
           cityId,
+          data.isPostedByAgency,
         ]
       );
     }
