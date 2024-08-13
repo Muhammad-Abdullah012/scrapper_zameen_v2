@@ -1,7 +1,7 @@
 import * as cheerio from "cheerio";
 import axios from "axios";
 import { Browser, Page } from "puppeteer";
-import { insertIntoPropertyV2 } from "./queries";
+import { insertAgency, insertIntoPropertyV2 } from "./queries";
 import { formatKeyValue } from "./utils/utils";
 import { logger as mainLogger } from "./config";
 import { Feature, IProperty_V2_Data } from "./types";
@@ -19,13 +19,22 @@ export const scrapeHtmlPage = async (url: string) => {
   const location = $('div[aria-label="Property header" i]').text();
   const description = $('div[aria-label="Property description text" i]').text();
   const coverPhotoUrl = $('img[aria-label="Cover Photo" i]').attr("src");
-  const isPostedByAgency = $('div[aria-label="Agency info" i]').length > 0;
+  const agencyInfo = $('div[aria-label="Agency info" i]');
+  const agencyProfileLink = agencyInfo.find("a").filter(function () {
+    return $(this).text().trim().toLowerCase() === "view agency profile";
+  });
+
+  const agencyIdPromise = insertAgency({
+    title: agencyProfileLink.attr("title"),
+    profileUrl: agencyProfileLink.attr("href"),
+  });
+
   const keyValue: { [key: string]: any } = {
     header,
     desc: description,
     url,
     coverPhotoUrl,
-    isPostedByAgency,
+    isPostedByAgency: agencyInfo.length > 0,
   };
   $('ul[aria-label="Property details" i] li').each(function (i, elem) {
     const spans = $(this)
@@ -67,6 +76,7 @@ export const scrapeHtmlPage = async (url: string) => {
     });
   keyValue["features"] = features;
   keyValue["location"] = location;
+  keyValue["agency_id"] = await agencyIdPromise;
   return keyValue;
 };
 

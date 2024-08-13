@@ -16,9 +16,15 @@ export interface IProperty_V2_Data {
   coverPhotoUrl?: string;
   features?: Feature[];
   isPostedByAgency: boolean;
+  agency_id?: number;
 }
 
 export interface Feature {
   category: string;
   features: string[];
+}
+
+export interface IinsertIntoAgencyProps {
+  title: string | undefined;
+  profileUrl: string | undefined;
 }
