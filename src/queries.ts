@@ -2,6 +2,7 @@ import { pool } from "./config";
 import { IinsertIntoAgencyProps, IProperty_V2_Data } from "./types";
 import { logger as mainLogger } from "./config";
 import { PoolClient } from "pg";
+import { getExternalId } from "./utils/utils";
 
 const logger = mainLogger.child({ file: "queries" });
 const PROPERTIES_TABLE_NAME = "properties";
@@ -80,10 +81,11 @@ export const insertIntoLocation = async (location: string) => {
   }
 };
 
-export const alreadyExists = async (url: string) => {
+export const alreadyExists = async (externalId: number | null) => {
+  if (externalId == null) return false;
   const result = await pool.query(
-    `SELECT * FROM ${PROPERTIES_TABLE_NAME} WHERE url = $1`,
-    [url]
+    `SELECT * FROM ${PROPERTIES_TABLE_NAME} WHERE external_id = $1`,
+    [externalId]
   );
   return result.rowCount != null && result.rowCount > 0;
 };
@@ -152,9 +154,10 @@ export const insertIntoPropertyV2 = async (
 ) => {
   try {
     const locationId = await insertIntoLocation(data.location ?? "");
-    const exists = await alreadyExists(data.url ?? "");
+    const externalId = getExternalId(data.url ?? "");
+    const exists = await alreadyExists(externalId);
     if (exists) {
-      logger.info(data.url + " already exists in table, Updating!");
+      logger.info(externalId + " already exists in table, Updating!");
       await pool.query(
         `UPDATE ${PROPERTIES_TABLE_NAME} 
          SET "description" = $1, 
@@ -173,8 +176,9 @@ export const insertIntoPropertyV2 = async (
              cover_photo_url = $15,
              features = $16::jsonb,
              is_posted_by_agency = $17,
-             agency_id = $18
-         WHERE url = $14`,
+             agency_id = $18,
+             url = $14
+         WHERE external_id = $15`,
         [
           data.desc,
           data.header,
@@ -194,12 +198,13 @@ export const insertIntoPropertyV2 = async (
           JSON.stringify(data.features),
           data.isPostedByAgency,
           data.agency_id,
+          externalId,
         ]
       );
     } else {
       logger.debug(data.url + " does not exist in table, inserting!");
       await pool.query(
-        `INSERT INTO ${PROPERTIES_TABLE_NAME} ("description", header, type, price, location_id, bath, area, purpose, bedroom, added, initial_amount, monthly_installment, remaining_installments, url, cover_photo_url, features, city_id, is_posted_by_agency, agency_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18, $19)`,
+        `INSERT INTO ${PROPERTIES_TABLE_NAME} ("description", header, type, price, location_id, bath, area, purpose, bedroom, added, initial_amount, monthly_installment, remaining_installments, url, cover_photo_url, features, city_id, is_posted_by_agency, agency_id, external_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18, $19, $20)`,
         [
           data.desc,
           data.header,
@@ -220,6 +225,7 @@ export const insertIntoPropertyV2 = async (
           cityId,
           data.isPostedByAgency,
           data.agency_id,
+          externalId,
         ]
       );
     }
