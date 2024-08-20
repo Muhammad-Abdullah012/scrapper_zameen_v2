@@ -1,5 +1,5 @@
-import puppeteer, { Browser } from "puppeteer";
-import { scrapListing, scrapStoriesListings } from "./scrap_helper";
+// import puppeteer, { Browser } from "puppeteer";
+import { scrapListing } from "./scrap_helper";
 import { getUrl } from "./utils/utils";
 import { logger as mainLogger } from "./config";
 import { insertIntoCity, lastAdded } from "./queries";
@@ -11,9 +11,9 @@ const PROPERTY_PURPOSE = ["Buy", "Rent"];
 const CITIES = ["Islamabad-3", "Karachi-2", "Lahore-1", "Rawalpindi-41"];
 
 (async () => {
-  let browser: Browser | null = null;
+  // let browser: Browser | null = null;
   try {
-    browser = await puppeteer.launch({ args: ["--no-sandbox"] });
+    // browser = await puppeteer.launch({ args: ["--no-sandbox"] });
     for (const city of CITIES) {
       const cityName = city.split("-")[0];
       const cityId = await insertIntoCity(cityName);
@@ -25,9 +25,10 @@ const CITIES = ["Islamabad-3", "Karachi-2", "Lahore-1", "Rawalpindi-41"];
             scrapListing(url, LAST_ADDED, cityId).catch((err) => {
               logger.error(`Error scraping ${url}: ${err}`);
             }),
-            scrapStoriesListings(url, browser, cityId).catch((err) => {
-              logger.error(`Error scraping story ${url}: ${err}`);
-            }),
+            // Remove stories for now because we don't store ads on zameen.com
+            // scrapStoriesListings(url, browser, cityId).catch((err) => {
+            //   logger.error(`Error scraping story ${url}: ${err}`);
+            // }),
           ]);
         }
       }
@@ -35,8 +36,8 @@ const CITIES = ["Islamabad-3", "Karachi-2", "Lahore-1", "Rawalpindi-41"];
   } catch (err) {
     logger.error(err);
   } finally {
-    if (browser) {
-      browser.close();
-    }
+    // if (browser) {
+    //   browser.close();
+    // }
   }
 })();
