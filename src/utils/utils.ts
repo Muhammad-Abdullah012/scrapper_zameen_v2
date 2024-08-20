@@ -67,6 +67,11 @@ export const getUrl = (propertyType: string, city: string, purpose: string) => {
   return `${process.env.BASE_URL}/${type}/${city}-1.html?sort=date_desc`;
 };
 
+export const getExternalId = (url: string) => {
+  const externalId = url?.split("-").slice(-3)[0];
+  return externalId ? Number(externalId) : null;
+};
+
 export const formatArea = (area: string) => {
   if (area.length === 0) {
     return 0;
