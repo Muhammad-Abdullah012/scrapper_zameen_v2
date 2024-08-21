@@ -1,8 +1,8 @@
 import * as cheerio from "cheerio";
 import axios from "axios";
 import { Browser, Page } from "puppeteer";
-import { insertAgency, insertIntoPropertyV2 } from "./queries";
-import { formatKeyValue } from "./utils/utils";
+import { alreadyExists, insertAgency, insertIntoPropertyV2 } from "./queries";
+import { formatKeyValue, getExternalId } from "./utils/utils";
 import { logger as mainLogger } from "./config";
 import { Feature, IProperty_V2_Data } from "./types";
 require("dotenv").config();
@@ -80,56 +80,40 @@ export const scrapeHtmlPage = async (url: string) => {
   return keyValue;
 };
 
-export const scrapStoriesListings = async (
-  url: string,
-  browser: Browser,
+const processPage = async (link: string) => {
+  logger.info("onPage ==> " + link);
+  const mainPage = await axios.get(link);
+  const $ = cheerio.load(mainPage.data);
+  const listingLinks = $('a[aria-label="Listing link"]')
+    .map((_, element) => {
+      return `${process.env.BASE_URL}${$(element).attr("href") ?? ""}`;
+    })
+    .get();
+
+  return listingLinks;
+};
+
+const processListing = async (
+  listingUrl: string,
+  lastAdded: Date,
   cityId: number
 ) => {
-  let nextLink: string | null = url;
-  let page: Page | null = null;
-  const storiesUrls: string[] = [];
-  try {
-    page = await browser.newPage();
-    page.on("response", async (response) => {
-      if (response.url().includes("queries")) {
-        const responseData = await response.json();
-        const { results } = responseData;
-        results?.forEach((result: any) => {
-          if (result?.index === "zameen-production-stories-en") {
-            const { hits } = result;
-            if (hits?.length > 0) {
-              hits?.forEach((hit: any) => {
-                storiesUrls.push(
-                  `${process.env.BASE_URL}/property/${hit.slug}.html`
-                );
-              });
-            }
-          }
-        });
-      }
-    });
-    await page.goto(nextLink ?? "");
-    await page.waitForNetworkIdle();
-  } catch (err) {
-    logger.error(err);
-  } finally {
-    if (page) {
-      await page.close();
-    }
+  const externalId = getExternalId(listingUrl);
+  const exists = await alreadyExists(externalId);
+  if (exists) {
+    logger.info(`Listing ${listingUrl} already exists`);
+    return false;
   }
-  const promises = storiesUrls.map((url) => scrapeHtmlPage(url));
-  const data = await Promise.allSettled(promises);
-  await Promise.allSettled(
-    data.map((result) => {
-      if (result.status === "fulfilled") {
-        return insertIntoPropertyV2(result.value as IProperty_V2_Data, cityId);
-      } else {
-        if (result.status === "rejected")
-          logger.error(`Error scraping ${nextLink}: ${result.reason}`);
-        return null;
-      }
-    })
-  );
+  const result = await scrapeHtmlPage(listingUrl);
+  const addedDate = new Date(result.added);
+  const lastAddedDate = new Date(lastAdded);
+  const isAddedAfter = addedDate.getTime() > lastAddedDate.getTime();
+
+  if (isAddedAfter) {
+    await insertIntoPropertyV2(result as IProperty_V2_Data, cityId, externalId);
+  }
+
+  return isAddedAfter;
 };
 
 export const scrapListing = async (
@@ -139,36 +123,12 @@ export const scrapListing = async (
 ) => {
   let nextLink: string | null = url;
 
-  const processPage = async (link: string) => {
-    logger.info("onPage ==> " + link);
-    const mainPage = await axios.get(link);
-    const $ = cheerio.load(mainPage.data);
-    const listingLinks = $('a[aria-label="Listing link"]')
-      .map((_, element) => {
-        return `${process.env.BASE_URL}${$(element).attr("href") ?? ""}`;
-      })
-      .get();
-
-    return listingLinks;
-  };
-
-  const processListing = async (listingUrl: string) => {
-    const result = await scrapeHtmlPage(listingUrl);
-    const addedDate = new Date(result.added);
-    const lastAddedDate = new Date(lastAdded);
-    const isAddedAfter = addedDate.getTime() > lastAddedDate.getTime();
-
-    if (isAddedAfter) {
-      await insertIntoPropertyV2(result as IProperty_V2_Data, cityId);
-    }
-
-    return isAddedAfter;
-  };
-
   do {
     try {
       const listingLinks = await processPage(nextLink);
-      const promises = listingLinks.map(processListing);
+      const promises = listingLinks.map((link) =>
+        processListing(link, lastAdded, cityId)
+      );
       const results = await Promise.allSettled(promises);
 
       const containsOldValue = results.some(
