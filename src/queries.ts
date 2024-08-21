@@ -178,7 +178,7 @@ export const insertIntoPropertyV2 = async (
              is_posted_by_agency = $17,
              agency_id = $18,
              url = $14
-         WHERE external_id = $15`,
+         WHERE external_id = $19`,
         [
           data.desc,
           data.header,
