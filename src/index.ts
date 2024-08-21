@@ -17,10 +17,11 @@ const CITIES = ["Islamabad-3", "Karachi-2", "Lahore-1", "Rawalpindi-41"];
     for (const city of CITIES) {
       const cityName = city.split("-")[0];
       const cityId = await insertIntoCity(cityName);
-      const LAST_ADDED = await lastAdded(cityId);
+      const lastAddedPromise = lastAdded(cityId);
       for (const propertyType of PROPERTY_TYPES) {
         for (const purpose of PROPERTY_PURPOSE) {
           const url = getUrl(propertyType, city, purpose);
+          const LAST_ADDED = await lastAddedPromise;
           await Promise.allSettled([
             scrapListing(url, LAST_ADDED, cityId).catch((err) => {
               logger.error(`Error scraping ${url}: ${err}`);

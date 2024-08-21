@@ -2,6 +2,7 @@ import { pool } from "./config";
 import { IinsertIntoAgencyProps, IProperty_V2_Data } from "./types";
 import { logger as mainLogger } from "./config";
 import { PoolClient } from "pg";
+import { getExternalId } from "./utils/utils";
 
 const logger = mainLogger.child({ file: "queries" });
 const PROPERTIES_TABLE_NAME = "properties";
@@ -80,10 +81,11 @@ export const insertIntoLocation = async (location: string) => {
   }
 };
 
-export const alreadyExists = async (url: string) => {
+export const alreadyExists = async (externalId: number | null) => {
+  if (externalId == null) return false;
   const result = await pool.query(
-    `SELECT * FROM ${PROPERTIES_TABLE_NAME} WHERE url = $1`,
-    [url]
+    `SELECT * FROM ${PROPERTIES_TABLE_NAME} WHERE external_id = $1`,
+    [externalId]
   );
   return result.rowCount != null && result.rowCount > 0;
 };
@@ -148,81 +150,38 @@ const getAgencyId = async (client: PoolClient, agencyProfileUrl: string) => {
 
 export const insertIntoPropertyV2 = async (
   data: IProperty_V2_Data,
-  cityId: number
+  cityId: number,
+  externalId: number | null
 ) => {
   try {
     const locationId = await insertIntoLocation(data.location ?? "");
-    const exists = await alreadyExists(data.url ?? "");
-    if (exists) {
-      logger.info(data.url + " already exists in table, Updating!");
-      await pool.query(
-        `UPDATE ${PROPERTIES_TABLE_NAME} 
-         SET "description" = $1, 
-             header = $2, 
-             type = $3, 
-             price = $4, 
-             location_id = $5, 
-             bath = $6, 
-             area = $7, 
-             purpose = $8, 
-             bedroom = $9,
-             initial_amount = $10, 
-             monthly_installment = $11, 
-             remaining_installments = $12,
-             added = $13,
-             cover_photo_url = $15,
-             features = $16::jsonb,
-             is_posted_by_agency = $17,
-             agency_id = $18
-         WHERE url = $14`,
-        [
-          data.desc,
-          data.header,
-          data.type,
-          data.price,
-          locationId,
-          data.bath,
-          data.area,
-          data.purpose,
-          data.bedroom,
-          data.initial_amount,
-          data.monthly_installment,
-          data.remaining_installments,
-          data.added,
-          data.url,
-          data.coverPhotoUrl,
-          JSON.stringify(data.features),
-          data.isPostedByAgency,
-          data.agency_id,
-        ]
-      );
-    } else {
-      logger.debug(data.url + " does not exist in table, inserting!");
-      await pool.query(
-        `INSERT INTO ${PROPERTIES_TABLE_NAME} ("description", header, type, price, location_id, bath, area, purpose, bedroom, added, initial_amount, monthly_installment, remaining_installments, url, cover_photo_url, features, city_id, is_posted_by_agency, agency_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18, $19)`,
-        [
-          data.desc,
-          data.header,
-          data.type,
-          data.price,
-          locationId,
-          data.bath,
-          data.area,
-          data.purpose,
-          data.bedroom,
-          data.added,
-          data.initial_amount,
-          data.monthly_installment,
-          data.remaining_installments,
-          data.url,
-          data.coverPhotoUrl,
-          JSON.stringify(data.features),
-          cityId,
-          data.isPostedByAgency,
-          data.agency_id,
-        ]
-      );
-    }
+
+    logger.info(data.url + " does not exist in table, inserting!");
+    await pool.query(
+      `INSERT INTO ${PROPERTIES_TABLE_NAME} ("description", header, type, price, location_id, bath, area, purpose, bedroom, added, initial_amount, monthly_installment, remaining_installments, url, cover_photo_url, features, city_id, is_posted_by_agency, agency_id, external_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18, $19, $20)`,
+      [
+        data.desc,
+        data.header,
+        data.type,
+        data.price,
+        locationId,
+        data.bath,
+        data.area,
+        data.purpose,
+        data.bedroom,
+        data.added,
+        data.initial_amount,
+        data.monthly_installment,
+        data.remaining_installments,
+        data.url,
+        data.coverPhotoUrl,
+        JSON.stringify(data.features),
+        cityId,
+        data.isPostedByAgency,
+        data.agency_id,
+        externalId,
+      ]
+    );
   } catch (err) {
     logger.error(`error while inserting or updating: ${err}`);
   }
