@@ -9,9 +9,9 @@ const job = new CronJob(
       stdio: "inherit",
     });
     task1.on("close", (code) => {
-      pool.query(
-        "REFRESH MATERIALIZED VIEW rankedpropertiesforsale; REFRESH MATERIALIZED VIEW rankedpropertiesforrent;"
-      );
+      pool.query("REFRESH MATERIALIZED VIEW rankedpropertiesforsale;");
+      pool.query("REFRESH MATERIALIZED VIEW rankedpropertiesforrent;");
+      pool.query("REFRESH MATERIALIZED VIEW countpropertiesview;");
       // const task2 = spawn("pnpm", ["run", "start-check-availibility"], {
       //   stdio: "inherit",
       // });
