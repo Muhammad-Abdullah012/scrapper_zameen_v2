@@ -31,7 +31,7 @@ importers:
         version: 9.1.0
       puppeteer:
         specifier: ^22.10.0
-        version: 22.10.0(typescript@5.4.5)
+        version: 22.10.0(typescript@5.5.4)
       sequelize:
         specifier: ^6.37.3
         version: 6.37.3(pg@8.11.5)
@@ -46,8 +46,8 @@ importers:
         specifier: ^8.11.6
         version: 8.11.6
       typescript:
-        specifier: ^5.4.5
-        version: 5.4.5
+        specifier: ^5.5.4
+        version: 5.5.4
 
 packages:
 
@@ -1012,8 +1012,8 @@ packages:
     resolution: {integrity: sha512-TkRKr9sUTxEH8MdfuCSP7VizJyzRNMjj2J2do2Jr3Kym598JVdEksuzPQCnlFPW4ky9Q+iA+ma9BGm06XQBy8g==}
     engines: {node: '>= 0.6'}
 
-  typescript@5.4.5:
-    resolution: {integrity: sha512-vcI4UpRgg81oIRUFwR0WSIHKt11nJ7SAVlYNIu+QpqeyXP+gpQJy/Z4+F0aGxSE4MqwjyXvW/TzgkLAx2AGHwQ==}
+  typescript@5.5.4:
+    resolution: {integrity: sha512-Mtq29sKDAEYP7aljRgtPOpTvOfbwRWlS6dPRzwjdE+C0R4brX/GUyhHSecbHMFLNBLcJIPt9nl9yG5TZ1weH+Q==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -1376,14 +1376,14 @@ snapshots:
 
   cookie@0.6.0: {}
 
-  cosmiconfig@9.0.0(typescript@5.4.5):
+  cosmiconfig@9.0.0(typescript@5.5.4):
     dependencies:
       env-paths: 2.2.1
       import-fresh: 3.3.0
       js-yaml: 4.1.0
       parse-json: 5.2.0
     optionalDependencies:
-      typescript: 5.4.5
+      typescript: 5.5.4
 
   cron@3.1.7:
     dependencies:
@@ -1943,10 +1943,10 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  puppeteer@22.10.0(typescript@5.4.5):
+  puppeteer@22.10.0(typescript@5.5.4):
     dependencies:
       '@puppeteer/browsers': 2.2.3
-      cosmiconfig: 9.0.0(typescript@5.4.5)
+      cosmiconfig: 9.0.0(typescript@5.5.4)
       devtools-protocol: 0.0.1286932
       puppeteer-core: 22.10.0
     transitivePeerDependencies:
@@ -2157,7 +2157,7 @@ snapshots:
       media-typer: 0.3.0
       mime-types: 2.1.35
 
-  typescript@5.4.5: {}
+  typescript@5.5.4: {}
 
   unbzip2-stream@1.4.3:
     dependencies:

@@ -1,19 +1,29 @@
 import * as cheerio from "cheerio";
+import { Op } from "sequelize";
 import axios from "axios";
-import { Browser, Page } from "puppeteer";
-import { alreadyExists, insertAgency, insertIntoPropertyV2 } from "./queries";
-import { formatKeyValue, getExternalId } from "./utils/utils";
+
+import {
+  insertAgency,
+  alreadyExists,
+  insertIntoLocation,
+  insertIntoPropertyV2,
+} from "./queries";
 import { logger as mainLogger } from "./config";
-import { Feature, IProperty_V2_Data } from "./types";
+import { IRawProperty, Property, RawProperty } from "./types/model";
+import { formatKeyValue, getExternalId } from "./utils/utils";
+import { Feature, IPagesData, IProperty_V2_Data } from "./types";
+
 require("dotenv").config();
+
 const logger = mainLogger.child({ file: "scrap_helper" });
 
-export const scrapeHtmlPage = async (url: string) => {
-  logger.info(`scraping ${url}`);
-  const result = await axios.get(url);
-  const $ = cheerio.load(result.data);
-  $("style").remove();
-  $("br").replaceWith("\n");
+export const scrapeHtmlPage = async (
+  url: string,
+  html: string = "",
+  cityId?: number
+) => {
+  if (!html.length) return {};
+  const $ = cheerio.load(html);
 
   const header = $("h1").text();
   const location = $('div[aria-label="Property header" i]').text();
@@ -29,12 +39,15 @@ export const scrapeHtmlPage = async (url: string) => {
     profileUrl: agencyProfileLink.attr("href"),
   });
 
+  const locationIdPromise = insertIntoLocation(location);
+
   const keyValue: { [key: string]: any } = {
     header,
-    desc: description,
+    description,
     url,
-    coverPhotoUrl,
-    isPostedByAgency: agencyInfo.length > 0,
+    city_id: cityId,
+    cover_photo_url: coverPhotoUrl,
+    is_posted_by_agency: agencyInfo.length > 0,
   };
   $('ul[aria-label="Property details" i] li').each(function (i, elem) {
     const spans = $(this)
@@ -61,7 +74,7 @@ export const scrapeHtmlPage = async (url: string) => {
 
   $($amenities)
     .find("div._040e4f65")
-    .each(function (index, element) {
+    .each(function (_, element) {
       const category = $(element).find("div.f5c4d39a").text().trim();
       const featureList: string[] = [];
 
@@ -75,8 +88,12 @@ export const scrapeHtmlPage = async (url: string) => {
       features.push({ category, features: featureList });
     });
   keyValue["features"] = features;
-  keyValue["location"] = location;
-  keyValue["agency_id"] = await agencyIdPromise;
+  const [locationId, agencyId] = await Promise.all([
+    locationIdPromise,
+    agencyIdPromise,
+  ]);
+  keyValue["location_id"] = locationId;
+  keyValue["agency_id"] = agencyId;
   return keyValue;
 };
 
@@ -146,4 +163,86 @@ export const scrapListing = async (
       logger.error(`Error scraping ${nextLink}: ${error}`);
     }
   } while (nextLink != null);
+};
+
+export const getHtmlPage = async (page: IPagesData) => {
+  try {
+    const result = await axios.get(page.url);
+    const $ = cheerio.load(result.data);
+    $("script").remove();
+    $("style").remove();
+    $("link").remove();
+    $("meta").remove();
+    $("svg").remove();
+    $("br").replaceWith("\n");
+    return {
+      url: page.url,
+      city_id: page.cityId,
+      html: $.html(),
+      external_id: getExternalId(page.url),
+    };
+  } catch (error) {
+    logger.error(`Error scraping ${page.url}: ${error}`);
+    return null;
+  }
+};
+
+const filterOutExistingUrls = async (
+  pages: (IPagesData | null)[]
+): Promise<(IPagesData | null)[]> => {
+  if (!pages.length) return pages;
+
+  const externalIds = pages
+    .map((page) => page && getExternalId(page.url))
+    .filter((id): id is number => id !== null);
+
+  if (externalIds.length === 0) return pages;
+
+  const existingUrlsSet = new Set(
+    (
+      await Property.findAll({
+        where: { external_id: { [Op.in]: externalIds } },
+        attributes: ["url"],
+      })
+    ).map((property) => property.url)
+  );
+
+  return pages.filter((page) => page && !existingUrlsSet.has(page.url));
+};
+
+const getFilteredUrls = async (
+  batch: IPagesData[]
+): Promise<(IPagesData | null)[]> => {
+  const batchResult = (
+    await Promise.allSettled(
+      batch.map((p) =>
+        processPage(p.url).then((result) =>
+          result.map((value) => ({ url: value, cityId: p.cityId }))
+        )
+      )
+    )
+  ).flatMap((result) => (result.status === "fulfilled" ? result.value : null));
+
+  return filterOutExistingUrls(batchResult);
+};
+
+export const processInBatches = async (
+  page: IPagesData[],
+  batchSize: number
+) => {
+  for (let i = 0; i < page.length; i += batchSize) {
+    const dataToInsert = (
+      await Promise.allSettled(
+        (
+          await getFilteredUrls(page.slice(i, i + batchSize))
+        ).map((p) => (p == null ? null : getHtmlPage(p)))
+      )
+    )
+      .map((result) => (result.status === "fulfilled" ? result.value : null))
+      .filter((result) => result != null);
+
+    await RawProperty.bulkCreate(dataToInsert as IRawProperty[], {
+      ignoreDuplicates: true,
+    });
+  }
 };

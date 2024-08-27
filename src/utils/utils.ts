@@ -59,12 +59,21 @@ export const relativeTimeToTimestamp = (relativeTime: string) => {
   return timestamp.toISOString();
 };
 
-export const getUrl = (propertyType: string, city: string, purpose: string) => {
+export const getUrl = (
+  propertyType: string,
+  city: string,
+  purpose: string,
+  cityId: number
+) => {
   let type = purpose === "Rent" ? "Rentals" : propertyType;
   if (purpose === "Rent" && ["Plots", "Commercial"].includes(propertyType)) {
     type += "_" + propertyType;
   }
-  return `${process.env.BASE_URL}/${type}/${city}-1.html?sort=date_desc`;
+  // There are total 50 pages on zameen.com
+  return Array.from({ length: 50 }, (_, i) => ({
+    url: `${process.env.BASE_URL}/${type}/${city}-${i + 1}.html?sort=date_desc`,
+    cityId,
+  })).reverse();
 };
 
 export const getExternalId = (url: string) => {
