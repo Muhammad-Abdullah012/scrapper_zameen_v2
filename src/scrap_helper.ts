@@ -273,3 +273,28 @@ export const processInBatches = async (
     }
   }
 };
+
+export const scrapAndInsertData = async (batchSize: number) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const rawData = await RawProperty.findAll({
+    where: {
+      created_at: {
+        [Op.gte]: today,
+      },
+    },
+    attributes: ["url", "html", "city_id"],
+  });
+  for (let i = 0; i < rawData.length; i += batchSize) {
+    const dataToInsertdResult = await Promise.allSettled(
+      rawData
+        .slice(i, i + batchSize)
+        .map(({ url, html, city_id }) => scrapeHtmlPage(url, html, city_id))
+    );
+    const dataToInsert = dataToInsertdResult.map((v) =>
+      v.status === "fulfilled" ? v.value : {}
+    );
+
+    await Property.bulkCreate(dataToInsert as any);
+  }
+};
