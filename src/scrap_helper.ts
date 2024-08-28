@@ -7,6 +7,7 @@ import {
   alreadyExists,
   insertIntoLocation,
   insertIntoPropertyV2,
+  lastAdded,
 } from "./queries";
 import { logger as mainLogger } from "./config";
 import { IRawProperty, Property, RawProperty } from "./types/model";
@@ -187,62 +188,88 @@ export const getHtmlPage = async (page: IPagesData) => {
   }
 };
 
-const filterOutExistingUrls = async (
-  pages: (IPagesData | null)[]
-): Promise<(IPagesData | null)[]> => {
-  if (!pages.length) return pages;
+const fetchDataForIndex = async (page: IPagesData, idx: number) => {
+  const url = page.url.replace("*", idx.toString());
+  logger.info(`scraping url ==> ${url}`);
+  const lastPage = (await processPage(url)).at(-1);
 
-  const externalIds = pages
-    .map((page) => page && getExternalId(page.url))
-    .filter((id): id is number => id !== null);
+  if (!lastPage) return null;
 
-  if (externalIds.length === 0) return pages;
+  const p = await getHtmlPage({ ...page, url: lastPage });
+  const scrapedData = await scrapeHtmlPage(lastPage, p?.html, page.cityId);
+  const lastAddedDb = await lastAdded(page.cityId);
 
-  const existingUrlsSet = new Set(
-    (
-      await Property.findAll({
-        where: { external_id: { [Op.in]: externalIds } },
-        attributes: ["url"],
-      })
-    ).map((property) => property.url)
-  );
-
-  return pages.filter((page) => page && !existingUrlsSet.has(page.url));
+  return {
+    idx,
+    addedDate: new Date(scrapedData.added).getTime(),
+    lastAddedDate: new Date(lastAddedDb).getTime(),
+  };
 };
 
-const getFilteredUrls = async (
-  batch: IPagesData[]
-): Promise<(IPagesData | null)[]> => {
-  const batchResult = (
-    await Promise.allSettled(
-      batch.map((p) =>
-        processPage(p.url).then((result) =>
-          result.map((value) => ({ url: value, cityId: p.cityId }))
-        )
-      )
-    )
-  ).flatMap((result) => (result.status === "fulfilled" ? result.value : null));
-
-  return filterOutExistingUrls(batchResult);
+const getFilteredUrls = async (page: IPagesData) => {
+  const arr: number[] = Array.from({ length: 50 }, (_, i) => i + 1);
+  const results = await Promise.allSettled(
+    arr.map((idx) => fetchDataForIndex(page, idx))
+  );
+  for (const data of results) {
+    if (data.status === "rejected") continue;
+    if (!data.value) break;
+    const { idx: i, addedDate, lastAddedDate } = data.value;
+    if (addedDate < lastAddedDate) {
+      return { page, idx: i };
+    }
+  }
+  return { page, idx: 50 };
 };
 
 export const processInBatches = async (
   page: IPagesData[],
   batchSize: number
 ) => {
-  for (let i = 0; i < page.length; i += batchSize) {
+  const filteredUrls = await Promise.all(page.map(getFilteredUrls));
+
+  const filtered = await Promise.all(
+    filteredUrls
+      .filter((v) => v != null)
+      .map(async (v) => {
+        const { idx, page } = v;
+        const urlsToProcess = Array.from({ length: idx }, (_, i) =>
+          page.url.replace("*", (idx - i).toString())
+        );
+
+        const results = await Promise.all(
+          urlsToProcess.map(async (url) => {
+            const pageResults = await processPage(url);
+            return pageResults.map((value) => ({
+              url: value,
+              cityId: page.cityId,
+            }));
+          })
+        );
+
+        return results.flat();
+      })
+  );
+
+  const flattenedFiltered = filtered.flat(1);
+
+  for (let i = 0; i < flattenedFiltered.length; i += batchSize) {
     const dataToInsert = (
       await Promise.allSettled(
-        (
-          await getFilteredUrls(page.slice(i, i + batchSize))
-        ).map((p) => (p == null ? null : getHtmlPage(p)))
+        flattenedFiltered
+          .slice(i, i + batchSize)
+          .map((p) => (p == null ? null : getHtmlPage(p)))
       )
     )
       .map((result) => (result.status === "fulfilled" ? result.value : null))
       .filter((result) => result != null);
-
-    await RawProperty.bulkCreate(dataToInsert as IRawProperty[], {
-      ignoreDuplicates: true,
-    });
+    try {
+      await RawProperty.bulkCreate(dataToInsert as IRawProperty[], {
+        ignoreDuplicates: true,
+        returning: false,
+      });
+    } catch (err) {
+      logger.error(`Error inserting batch ${i + 1}-${i + batchSize}: ${err}`);
+    }
   }
 };

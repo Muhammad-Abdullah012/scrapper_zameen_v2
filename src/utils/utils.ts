@@ -69,11 +69,10 @@ export const getUrl = (
   if (purpose === "Rent" && ["Plots", "Commercial"].includes(propertyType)) {
     type += "_" + propertyType;
   }
-  // There are total 50 pages on zameen.com
-  return Array.from({ length: 50 }, (_, i) => ({
-    url: `${process.env.BASE_URL}/${type}/${city}-${i + 1}.html?sort=date_desc`,
+  return {
+    url: `${process.env.BASE_URL}/${type}/${city}-*.html?sort=date_desc`,
     cityId,
-  })).reverse();
+  };
 };
 
 export const getExternalId = (url: string) => {
