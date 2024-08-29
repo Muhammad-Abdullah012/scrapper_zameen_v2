@@ -40,7 +40,7 @@ const BATCH_SIZE = 20;
           )
         )
       );
-      logger.info("Pages :: ", pages.length);
+      logger.info(`Pages :: ${pages.length}`);
       await processInBatches(pages, BATCH_SIZE);
       logger.info(`Scraping completed successfully`);
     }
