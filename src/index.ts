@@ -14,8 +14,8 @@ const BATCH_SIZE = 20;
 
 (async () => {
   try {
+    console.time("Start scraping and inserting data");
     {
-      console.time("Start scraping and inserting data");
       const cityModels = await City.findAll({
         where: {
           name: {
@@ -46,10 +46,11 @@ const BATCH_SIZE = 20;
     }
     logger.info("Adding data to Properties table");
     await scrapAndInsertData(BATCH_SIZE);
-    console.timeEnd("Start scraping and inserting data");
     logger.info("Data added to Properties table successfully");
   } catch (err) {
     logger.error(err);
+  } finally {
+    console.timeEnd("Start scraping and inserting data");
   }
 })().catch((err) => {
   logger.fatal(`Unhandled error: ${err.message}`, { error: err });

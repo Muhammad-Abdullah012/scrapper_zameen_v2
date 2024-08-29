@@ -108,7 +108,7 @@ const processPage = async (link: string) => {
     })
     .get();
 
-  return listingLinks;
+  return listingLinks.reverse();
 };
 
 const processListing = async (
@@ -208,7 +208,7 @@ const fetchDataForIndex = async (page: IPagesData, idx: number) => {
 };
 
 const getFilteredUrls = async (page: IPagesData) => {
-  for (let i = 0; i < 50; ++i) {
+  for (let i = 1; i <= 50; ++i) {
     logger.info(`fetchDataForIndex at index :: ${i}, ${page.cityId}`);
     const results = await fetchDataForIndex(page, i);
     if (!results) return { page, idx: i };
@@ -226,20 +226,30 @@ export const processInBatches = async (
 ) => {
   for (let i = 0; i < page.length; i += batchSize) {
     logger.info(`processInBatches at index :: ${i}`);
-    const filteredUrls = await Promise.allSettled(
-      page.slice(i, i + batchSize).map(getFilteredUrls)
-    );
+    const filteredUrls: {
+      page: IPagesData;
+      idx: number;
+    }[] = [];
+
+    const slice = page.slice(i, i + batchSize);
+    for (const p of slice) {
+      try {
+        filteredUrls.push(await getFilteredUrls(p));
+      } catch (err) {
+        logger.error(
+          `Error fetching urls for city url: ${p.url} ${p.cityId}: ${err}`
+        );
+        continue;
+      }
+    }
+
     logger.info(`filteredUrls at index :: ${i}`);
 
     const filtered = await Promise.allSettled(
       filteredUrls.map(async (v) => {
-        if (v.status === "rejected") {
-          logger.error(`Error in getFilteredUrls: ${v.reason}`);
-          return [];
-        }
-        if (v.value == null) return [];
+        if (v == null) return [];
 
-        const { idx, page } = v.value;
+        const { idx, page } = v;
         const urlsToProcess = Array.from({ length: idx }, (_, i) =>
           page.url.replace("*", (idx - i).toString())
         );
