@@ -226,36 +226,45 @@ export const processInBatches = async (
 ) => {
   for (let i = 0; i < page.length; i += batchSize) {
     logger.info("processInBatches at index :: ", i);
-    const filteredUrls = await Promise.all(
+    const filteredUrls = await Promise.allSettled(
       page.slice(i, i + batchSize).map(getFilteredUrls)
     );
     logger.info("filteredUrls at index :: ", i);
 
-    const filtered = await Promise.all(
-      filteredUrls
-        .filter((v) => v != null)
-        .map(async (v) => {
-          const { idx, page } = v;
-          const urlsToProcess = Array.from({ length: idx }, (_, i) =>
-            page.url.replace("*", (idx - i).toString())
-          );
+    const filtered = await Promise.allSettled(
+      filteredUrls.map(async (v) => {
+        if (v.status === "rejected") {
+          logger.error(`Error in getFilteredUrls: ${v.reason}`);
+          return [];
+        }
+        if (v.value == null) return [];
 
-          const results = await Promise.all(
-            urlsToProcess.map(async (url) => {
-              const pageResults = await processPage(url);
-              return pageResults.map((value) => ({
-                url: value,
-                cityId: page.cityId,
-              }));
-            })
-          );
+        const { idx, page } = v.value;
+        const urlsToProcess = Array.from({ length: idx }, (_, i) =>
+          page.url.replace("*", (idx - i).toString())
+        );
 
-          return results.flat();
-        })
+        const results = await Promise.allSettled(
+          urlsToProcess.map(async (url) => {
+            const pageResults = await processPage(url);
+            return pageResults.map((value) => ({
+              url: value,
+              cityId: page.cityId,
+            }));
+          })
+        );
+
+        const resultValues = results
+          .flatMap((v) => (v.status === "fulfilled" ? v.value : null))
+          .filter((v) => v != null);
+        return resultValues;
+      })
     );
     logger.info("filtered at index :: ", i);
 
-    const flattenedFiltered = filtered.flat(1);
+    const flattenedFiltered = filtered
+      .flatMap((v) => (v.status === "fulfilled" ? v.value : null))
+      .filter((v) => v != null);
     const dataToInsert = (
       await Promise.allSettled(
         flattenedFiltered.map((p) => (p == null ? null : getHtmlPage(p)))
