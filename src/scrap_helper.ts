@@ -195,9 +195,10 @@ const fetchDataForIndex = async (page: IPagesData, idx: number) => {
 
   if (!lastPage) return null;
 
+  const lastAddedDbPromise = lastAdded(page.cityId);
   const p = await getHtmlPage({ ...page, url: lastPage });
   const scrapedData = await scrapeHtmlPage(lastPage, p?.html, page.cityId);
-  const lastAddedDb = await lastAdded(page.cityId);
+  const lastAddedDb = await lastAddedDbPromise;
 
   return {
     idx,
