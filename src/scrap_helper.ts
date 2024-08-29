@@ -207,16 +207,13 @@ const fetchDataForIndex = async (page: IPagesData, idx: number) => {
 };
 
 const getFilteredUrls = async (page: IPagesData) => {
-  const arr: number[] = Array.from({ length: 50 }, (_, i) => i + 1);
-  const results = await Promise.allSettled(
-    arr.map((idx) => fetchDataForIndex(page, idx))
-  );
-  for (const data of results) {
-    if (data.status === "rejected") continue;
-    if (!data.value) break;
-    const { idx: i, addedDate, lastAddedDate } = data.value;
+  for (let i = 0; i < 50; ++i) {
+    logger.info("fetchDataForIndex at index :: ", i, page.cityId);
+    const results = await fetchDataForIndex(page, i);
+    if (!results) return { page, idx: i };
+    const { idx, addedDate, lastAddedDate } = results;
     if (addedDate < lastAddedDate) {
-      return { page, idx: i };
+      return { page, idx };
     }
   }
   return { page, idx: 50 };
@@ -226,39 +223,41 @@ export const processInBatches = async (
   page: IPagesData[],
   batchSize: number
 ) => {
-  const filteredUrls = await Promise.all(page.map(getFilteredUrls));
+  for (let i = 0; i < page.length; i += batchSize) {
+    logger.info("processInBatches at index :: ", i);
+    const filteredUrls = await Promise.all(
+      page.slice(i, i + batchSize).map(getFilteredUrls)
+    );
+    logger.info("filteredUrls at index :: ", i);
 
-  const filtered = await Promise.all(
-    filteredUrls
-      .filter((v) => v != null)
-      .map(async (v) => {
-        const { idx, page } = v;
-        const urlsToProcess = Array.from({ length: idx }, (_, i) =>
-          page.url.replace("*", (idx - i).toString())
-        );
+    const filtered = await Promise.all(
+      filteredUrls
+        .filter((v) => v != null)
+        .map(async (v) => {
+          const { idx, page } = v;
+          const urlsToProcess = Array.from({ length: idx }, (_, i) =>
+            page.url.replace("*", (idx - i).toString())
+          );
 
-        const results = await Promise.all(
-          urlsToProcess.map(async (url) => {
-            const pageResults = await processPage(url);
-            return pageResults.map((value) => ({
-              url: value,
-              cityId: page.cityId,
-            }));
-          })
-        );
+          const results = await Promise.all(
+            urlsToProcess.map(async (url) => {
+              const pageResults = await processPage(url);
+              return pageResults.map((value) => ({
+                url: value,
+                cityId: page.cityId,
+              }));
+            })
+          );
 
-        return results.flat();
-      })
-  );
+          return results.flat();
+        })
+    );
+    logger.info("filtered at index :: ", i);
 
-  const flattenedFiltered = filtered.flat(1);
-
-  for (let i = 0; i < flattenedFiltered.length; i += batchSize) {
+    const flattenedFiltered = filtered.flat(1);
     const dataToInsert = (
       await Promise.allSettled(
-        flattenedFiltered
-          .slice(i, i + batchSize)
-          .map((p) => (p == null ? null : getHtmlPage(p)))
+        flattenedFiltered.map((p) => (p == null ? null : getHtmlPage(p)))
       )
     )
       .map((result) => (result.status === "fulfilled" ? result.value : null))
@@ -269,7 +268,9 @@ export const processInBatches = async (
         returning: false,
       });
     } catch (err) {
-      logger.error(`Error inserting batch ${i + 1}-${i + batchSize}: ${err}`);
+      logger.error(
+        `Error inserting batch in RawProperty ${i + 1}-${i + batchSize}: ${err}`
+      );
     }
   }
 };
@@ -294,7 +295,15 @@ export const scrapAndInsertData = async (batchSize: number) => {
     const dataToInsert = dataToInsertdResult.map((v) =>
       v.status === "fulfilled" ? v.value : {}
     );
-
-    await Property.bulkCreate(dataToInsert as any);
+    try {
+      await Property.bulkCreate(dataToInsert as any, {
+        ignoreDuplicates: true,
+        returning: false,
+      });
+    } catch (err) {
+      logger.error(
+        `Error inserting batch in Property ${i + 1}-${i + batchSize}: ${err}`
+      );
+    }
   }
 };
