@@ -209,7 +209,7 @@ const fetchDataForIndex = async (page: IPagesData, idx: number) => {
 
 const getFilteredUrls = async (page: IPagesData) => {
   for (let i = 0; i < 50; ++i) {
-    logger.info("fetchDataForIndex at index :: ", i, page.cityId);
+    logger.info(`fetchDataForIndex at index :: ${i}, ${page.cityId}`);
     const results = await fetchDataForIndex(page, i);
     if (!results) return { page, idx: i };
     const { idx, addedDate, lastAddedDate } = results;
@@ -225,11 +225,11 @@ export const processInBatches = async (
   batchSize: number
 ) => {
   for (let i = 0; i < page.length; i += batchSize) {
-    logger.info("processInBatches at index :: ", i);
+    logger.info(`processInBatches at index :: ${i}`);
     const filteredUrls = await Promise.allSettled(
       page.slice(i, i + batchSize).map(getFilteredUrls)
     );
-    logger.info("filteredUrls at index :: ", i);
+    logger.info(`filteredUrls at index :: ${i}`);
 
     const filtered = await Promise.allSettled(
       filteredUrls.map(async (v) => {
@@ -260,7 +260,7 @@ export const processInBatches = async (
         return resultValues;
       })
     );
-    logger.info("filtered at index :: ", i);
+    logger.info(`filtered at index :: ${i}`);
 
     const flattenedFiltered = filtered
       .flatMap((v) => (v.status === "fulfilled" ? v.value : null))
