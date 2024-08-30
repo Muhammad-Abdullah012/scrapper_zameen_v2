@@ -39,3 +39,15 @@ export interface IPagesData {
   url: string;
   cityId: number;
 }
+
+export interface IFilteredUrls {
+  page: IPagesData;
+  idx: number;
+}
+
+export interface IDataToInsert {
+  url: string;
+  city_id: number;
+  html: string;
+  external_id: number | null;
+}

@@ -12,7 +12,13 @@ import {
 import { logger as mainLogger } from "./config";
 import { IRawProperty, Property, RawProperty } from "./types/model";
 import { formatKeyValue, getExternalId } from "./utils/utils";
-import { Feature, IPagesData, IProperty_V2_Data } from "./types";
+import {
+  Feature,
+  IDataToInsert,
+  IFilteredUrls,
+  IPagesData,
+  IProperty_V2_Data,
+} from "./types";
 
 require("dotenv").config();
 
@@ -183,7 +189,7 @@ export const getHtmlPage = async (page: IPagesData) => {
       external_id: getExternalId(page.url),
     };
   } catch (error) {
-    logger.error(`Error scraping ${page.url}: ${error}`);
+    logger.error(`getHtmlPage::Error scraping ${page.url}: ${error}`);
     return null;
   }
 };
@@ -238,10 +244,7 @@ export const processInBatches = async (
 ) => {
   for (let i = 0; i < page.length; i += batchSize) {
     logger.info(`processInBatches at index :: ${i}`);
-    const filteredUrls: {
-      page: IPagesData;
-      idx: number;
-    }[] = [];
+    const filteredUrls: IFilteredUrls[] = [];
 
     const slice = page.slice(i, i + batchSize);
     for (const p of slice) {
@@ -264,31 +267,28 @@ export const processInBatches = async (
         const { idx, page } = v;
         const urlsToProcess = Array.from({ length: idx }, (_, i) =>
           page.url.replace("*", (idx - i).toString())
-        );
+        ).values();
 
-        const results = await Promise.allSettled(
-          urlsToProcess.map(async (url) => {
-            const pageResults = await processPage(url);
-            const pageUrls: string[] = [];
-            for (const result of pageResults) {
-              const shouldInclude = await filterOutExistingProperties(
-                result,
-                page.cityId
-              );
-              if (!shouldInclude) continue;
-              pageUrls.push(result);
-            }
+        const resultValues: IPagesData[] = [];
+        for (const url of urlsToProcess) {
+          const pageResults = await processPage(url);
+          const pageUrls: string[] = [];
+          for (const result of pageResults) {
+            const shouldInclude = await filterOutExistingProperties(
+              result,
+              page.cityId
+            );
+            if (!shouldInclude) continue;
+            pageUrls.push(result);
+          }
 
-            return pageUrls.map((value) => ({
-              url: value,
-              cityId: page.cityId,
-            }));
-          })
-        );
+          const mapped = pageUrls.map((value) => ({
+            url: value,
+            cityId: page.cityId,
+          }));
+          resultValues.push(...mapped);
+        }
 
-        const resultValues = results
-          .flatMap((v) => (v.status === "fulfilled" ? v.value : null))
-          .filter((v) => v != null);
         return resultValues;
       })
     );
@@ -296,14 +296,18 @@ export const processInBatches = async (
 
     const flattenedFiltered = filtered
       .flatMap((v) => (v.status === "fulfilled" ? v.value : null))
-      .filter((v) => v != null);
-    const dataToInsert = (
-      await Promise.allSettled(
-        flattenedFiltered.map((p) => (p == null ? null : getHtmlPage(p)))
-      )
-    )
-      .map((result) => (result.status === "fulfilled" ? result.value : null))
-      .filter((result) => result != null);
+      .filter((v) => v != null)
+      .values();
+
+    const dataToInsert: IDataToInsert[] = [];
+
+    for (const p of flattenedFiltered) {
+      if (p == null) continue;
+      const htmlResult = await getHtmlPage(p);
+      if (htmlResult == null) continue;
+      dataToInsert.push(htmlResult);
+    }
+
     try {
       await RawProperty.bulkCreate(dataToInsert as IRawProperty[], {
         ignoreDuplicates: true,
