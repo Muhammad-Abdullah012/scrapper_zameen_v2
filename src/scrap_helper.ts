@@ -207,6 +207,18 @@ const fetchDataForIndex = async (page: IPagesData, idx: number) => {
   };
 };
 
+const filterOutExistingProperties = async (url: string, cityId: number) => {
+  const lastAddedDbPromise = lastAdded(cityId);
+  const p = await getHtmlPage({ url, cityId });
+  const scrapedData = await scrapeHtmlPage(url, p?.html, cityId);
+  const lastAddedDb = await lastAddedDbPromise;
+
+  const addedDate = new Date(scrapedData.added).getTime();
+  const lastAddedDate = new Date(lastAddedDb).getTime();
+
+  return addedDate > lastAddedDate;
+};
+
 const getFilteredUrls = async (page: IPagesData) => {
   for (let i = 1; i <= 50; ++i) {
     logger.info(`fetchDataForIndex at index :: ${i}, ${page.cityId}`);
@@ -257,7 +269,17 @@ export const processInBatches = async (
         const results = await Promise.allSettled(
           urlsToProcess.map(async (url) => {
             const pageResults = await processPage(url);
-            return pageResults.map((value) => ({
+            const pageUrls: string[] = [];
+            for (const result of pageResults) {
+              const shouldInclude = await filterOutExistingProperties(
+                result,
+                page.cityId
+              );
+              if (!shouldInclude) continue;
+              pageUrls.push(result);
+            }
+
+            return pageUrls.map((value) => ({
               url: value,
               cityId: page.cityId,
             }));
