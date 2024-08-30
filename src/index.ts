@@ -33,13 +33,13 @@ const BATCH_SIZE = 20;
         return acc;
       }, {} as Record<string, number>);
 
-      const pages = CITIES.flatMap((city) =>
-        PROPERTY_TYPES.flatMap((propertyType) =>
-          PROPERTY_PURPOSE.flatMap((purpose) =>
+      const pages = CITIES.map((city) =>
+        PROPERTY_TYPES.map((propertyType) =>
+          PROPERTY_PURPOSE.map((purpose) =>
             getUrl(propertyType, city, purpose, citiesMap[city])
           )
         )
-      );
+      ).flat(2);
       logger.info(`Pages :: ${pages.length}`);
       await processInBatches(pages, BATCH_SIZE);
       logger.info(`Scraping completed successfully`);
