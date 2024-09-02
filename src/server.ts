@@ -1,3 +1,4 @@
+require("dotenv").config();
 import express from "express";
 import { spawn } from "node:child_process";
 

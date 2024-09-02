@@ -1,3 +1,4 @@
+require("dotenv").config();
 import { Sequelize } from "sequelize";
 
 const {

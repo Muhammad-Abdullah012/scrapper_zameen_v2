@@ -1,3 +1,4 @@
+require("dotenv").config();
 import * as cheerio from "cheerio";
 import { Op } from "sequelize";
 import axios from "axios";

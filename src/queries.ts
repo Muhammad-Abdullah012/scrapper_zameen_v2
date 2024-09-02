@@ -1,3 +1,4 @@
+require("dotenv").config();
 import { pool } from "./config";
 import { IinsertIntoAgencyProps, IProperty_V2_Data } from "./types";
 import { logger as mainLogger } from "./config";
