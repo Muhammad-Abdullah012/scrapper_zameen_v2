@@ -102,7 +102,7 @@ const processListing = async (
   const exists = await alreadyExists(externalId);
   if (exists) {
     logger.info(`Listing ${listingUrl} already exists`);
-    return false;
+    return;
   }
   const result = await scrapeHtmlPage(listingUrl);
   const addedDate = new Date(result.added);
