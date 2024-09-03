@@ -10,9 +10,13 @@ import {
   insertIntoPropertyV2,
   lastAdded,
 } from "./queries";
-import { logger as mainLogger } from "./config";
+import { limiter, logger as mainLogger } from "./config";
 import { IRawProperty, Property, RawProperty } from "./types/model";
-import { formatKeyValue, getExternalId } from "./utils/utils";
+import {
+  formatKeyValue,
+  getAllPromisesResults,
+  getExternalId,
+} from "./utils/utils";
 import {
   Feature,
   IDataToInsert,
@@ -175,6 +179,7 @@ export const scrapListing = async (
 
 export const getHtmlPage = async (page: IPagesData) => {
   try {
+    logger.info(`getting html at: ${page.url}`);
     const result = await axios.get(page.url);
     const $ = cheerio.load(result.data);
     $("script").remove();
@@ -195,16 +200,44 @@ export const getHtmlPage = async (page: IPagesData) => {
   }
 };
 
-const fetchDataForIndex = async (page: IPagesData, idx: number) => {
+const extractAddedDateFromHtml = (html: string = "") => {
+  if (!html) return {};
+  const $ = cheerio.load(html);
+  const keyValue: { [key: string]: any } = {};
+  $('ul[aria-label="Property details" i] li').each(function (i, elem) {
+    const spans = $(this)
+      .children("span")
+      .filter(function () {
+        return $(this).text().trim() !== "";
+      });
+    const key = $(spans[0]).text();
+    const value = spans
+      .slice(1)
+      .map(function () {
+        return $(this).text();
+      })
+      .get()
+      .join(" ");
+
+    const lowerCaseKey = key.split("(")[0].toLowerCase().replace(/\s+/g, "_");
+    keyValue[lowerCaseKey] = formatKeyValue(lowerCaseKey, value);
+  });
+  return keyValue;
+};
+
+const fetchDataForIndex = async (
+  page: IPagesData,
+  idx: number,
+  lastAddedDbPromise: Promise<any>
+) => {
   const url = page.url.replace("*", idx.toString());
   logger.info(`scraping url ==> ${url}`);
   const lastPage = (await processPage(url)).at(-1);
 
   if (!lastPage) return null;
 
-  const lastAddedDbPromise = lastAdded(page.cityId);
   const p = await getHtmlPage({ ...page, url: lastPage });
-  const scrapedData = await scrapeHtmlPage(lastPage, p?.html, page.cityId);
+  const scrapedData = extractAddedDateFromHtml(p?.html);
   const lastAddedDb = await lastAddedDbPromise;
 
   return {
@@ -214,10 +247,13 @@ const fetchDataForIndex = async (page: IPagesData, idx: number) => {
   };
 };
 
-const filterOutExistingProperties = async (url: string, cityId: number) => {
-  const lastAddedDbPromise = lastAdded(cityId);
+const filterOutExistingProperties = async (
+  url: string,
+  cityId: number,
+  lastAddedDbPromise: Promise<any>
+) => {
   const p = await getHtmlPage({ url, cityId });
-  const scrapedData = await scrapeHtmlPage(url, p?.html, cityId);
+  const scrapedData = extractAddedDateFromHtml(p?.html);
   const lastAddedDb = await lastAddedDbPromise;
 
   const addedDate = new Date(scrapedData.added).getTime();
@@ -226,10 +262,17 @@ const filterOutExistingProperties = async (url: string, cityId: number) => {
   return addedDate > lastAddedDate;
 };
 
-const getFilteredUrls = async (page: IPagesData) => {
+export const getFilteredUrls = async (
+  page: IPagesData,
+  cityLastAddedMap: Record<number, Promise<any>>
+) => {
   for (let i = 1; i <= 50; ++i) {
     logger.info(`fetchDataForIndex at index :: ${i}, ${page.cityId}`);
-    const results = await fetchDataForIndex(page, i);
+    const results = await fetchDataForIndex(
+      page,
+      i,
+      cityLastAddedMap[page.cityId]
+    );
     if (!results) return { page, idx: i };
     const { idx, addedDate, lastAddedDate } = results;
     if (addedDate < lastAddedDate) {
@@ -239,86 +282,73 @@ const getFilteredUrls = async (page: IPagesData) => {
   return { page, idx: 50 };
 };
 
-export const processInBatches = async (
-  page: IPagesData[],
-  batchSize: number
+const processUrl = async (
+  url: string,
+  cityId: number,
+  cityLastAddedMap: Record<number, Promise<any>>
 ) => {
-  for (let i = 0; i < page.length; i += batchSize) {
-    logger.info(`processInBatches at index :: ${i}`);
-    const filteredUrls: IFilteredUrls[] = [];
-
-    const slice = page.slice(i, i + batchSize);
-    for (const p of slice) {
-      try {
-        filteredUrls.push(await getFilteredUrls(p));
-      } catch (err) {
-        logger.error(
-          `Error fetching urls for city url: ${p.url} ${p.cityId}: ${err}`
-        );
-        continue;
-      }
-    }
-
-    logger.info(`filteredUrls at index :: ${i}`);
-
-    const filtered = await Promise.allSettled(
-      filteredUrls.map(async (v) => {
-        if (v == null) return [];
-
-        const { idx, page } = v;
-        const urlsToProcess = Array.from({ length: idx }, (_, i) =>
-          page.url.replace("*", (idx - i).toString())
-        ).values();
-
-        const resultValues: IPagesData[] = [];
-        for (const url of urlsToProcess) {
-          const pageResults = await processPage(url);
-          const pageUrls: string[] = [];
-          for (const result of pageResults) {
-            const shouldInclude = await filterOutExistingProperties(
-              result,
-              page.cityId
-            );
-            if (!shouldInclude) continue;
-            pageUrls.push(result);
-          }
-
-          const mapped = pageUrls.map((value) => ({
-            url: value,
-            cityId: page.cityId,
-          }));
-          resultValues.push(...mapped);
-        }
-
-        return resultValues;
-      })
+  const pageResults = await processPage(url);
+  const filterPromises = pageResults.map(async (result) => {
+    const shouldInclude = await filterOutExistingProperties(
+      result,
+      cityId,
+      cityLastAddedMap[cityId]
     );
-    logger.info(`filtered at index :: ${i}`);
+    return shouldInclude ? result : null;
+  });
 
-    const flattenedFiltered = filtered
-      .flatMap((v) => (v.status === "fulfilled" ? v.value : null))
-      .filter((v) => v != null)
-      .values();
+  const pageUrls = await getAllPromisesResults(filterPromises);
 
-    const dataToInsert: IDataToInsert[] = [];
+  return pageUrls.map((value) => ({
+    url: value as string,
+    cityId,
+  }));
+};
 
-    for (const p of flattenedFiltered) {
-      if (p == null) continue;
-      const htmlResult = await getHtmlPage(p);
-      if (htmlResult == null) continue;
-      dataToInsert.push(htmlResult);
-    }
+export const processInBatches = async (
+  pages: Promise<{ page: IPagesData; idx: number }>[],
+  batchSize: number,
+  cityLastAddedMap: Record<number, Promise<any>>
+) => {
+  console.time("filtering urls...");
+  const filteredUrls = await getAllPromisesResults(pages);
+  console.timeEnd("filtering urls...");
 
-    try {
-      await RawProperty.bulkCreate(dataToInsert as IRawProperty[], {
-        ignoreDuplicates: true,
-        returning: false,
-      });
-    } catch (err) {
-      logger.error(
-        `Error inserting batch in RawProperty ${i + 1}-${i + batchSize}: ${err}`
+  console.time("processing filteredUrls...");
+  const filtered = await getAllPromisesResults(
+    filteredUrls.map((v) => {
+      const { idx, page } = v;
+      const urlsToProcess = Array.from({ length: idx }, (_, i) =>
+        page.url.replace("*", (idx - i).toString())
       );
-    }
+      logger.info("starting processing urls ");
+
+      return getAllPromisesResults(
+        urlsToProcess.map((url) =>
+          limiter.schedule(() => processUrl(url, page.cityId, cityLastAddedMap))
+        )
+      );
+    })
+  );
+  console.timeEnd("processing filteredUrls...");
+  const flattenedFiltered = filtered.flat(3);
+  logger.info(`flattenedFiltered at ${flattenedFiltered.length}`);
+  console.time("getting html for filteredUrls...");
+  const dataToInsert = await getAllPromisesResults(
+    flattenedFiltered.map((url) => limiter.schedule(() => getHtmlPage(url)))
+  );
+
+  console.timeEnd("getting html for filteredUrls...");
+
+  console.log("dataToInsert => ", dataToInsert.length);
+
+  try {
+    await RawProperty.bulkCreate(dataToInsert as IRawProperty[], {
+      ignoreDuplicates: true,
+      returning: false,
+    });
+  } catch (err) {
+    logger.error(`Error inserting batch in RawProperty : ${err}`);
   }
 };
 

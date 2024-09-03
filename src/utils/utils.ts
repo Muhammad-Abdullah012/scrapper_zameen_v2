@@ -145,3 +145,12 @@ export const formatKeyValue = (key: string, value: string) => {
 
   return value;
 };
+
+export const getAllPromisesResults = async <T>(
+  promises: Promise<T>[]
+): Promise<T[]> => {
+  const promiseResults = await Promise.allSettled(promises);
+  return promiseResults
+    .map((result) => (result.status === "fulfilled" ? result.value : null))
+    .filter((v) => v != null);
+};

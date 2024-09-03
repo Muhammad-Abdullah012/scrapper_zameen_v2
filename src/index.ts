@@ -2,7 +2,12 @@ import { Op } from "sequelize";
 import { City } from "./types/model";
 import { getUrl } from "./utils/utils";
 import { logger as mainLogger } from "./config";
-import { processInBatches, scrapAndInsertData } from "./scrap_helper";
+import {
+  getFilteredUrls,
+  processInBatches,
+  scrapAndInsertData,
+} from "./scrap_helper";
+import { lastAdded } from "./queries";
 
 const logger = mainLogger.child({ file: "index" });
 
@@ -33,6 +38,11 @@ const BATCH_SIZE = 20;
         return acc;
       }, {} as Record<string, number>);
 
+      const citiesLastAddedMap = cityModels.reduce((acc, city) => {
+        acc[city.id] = lastAdded(city.id);
+        return acc;
+      }, {} as Record<number, Promise<any>>);
+
       const pages = CITIES.map((city) =>
         PROPERTY_TYPES.map((propertyType) =>
           PROPERTY_PURPOSE.map((purpose) =>
@@ -41,7 +51,11 @@ const BATCH_SIZE = 20;
         )
       ).flat(2);
       logger.info(`Pages :: ${pages.length}`);
-      await processInBatches(pages, BATCH_SIZE);
+      await processInBatches(
+        pages.map((p) => getFilteredUrls(p, citiesLastAddedMap)),
+        BATCH_SIZE,
+        citiesLastAddedMap
+      );
       logger.info(`Scraping completed successfully`);
     }
     logger.info("Adding data to Properties table");
