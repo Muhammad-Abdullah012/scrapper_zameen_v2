@@ -4,7 +4,9 @@ import { pino } from "pino";
 import { unlink } from "fs";
 
 unlink("logs/app.log", () => {});
-export const logger = pino(pino.destination("logs/app.log"));
+export const logger = pino({
+  timestamp: pino.stdTimeFunctions.isoTime
+}, pino.destination("logs/app.log"));
 
 export const pool = new Pool({
   user: process.env.POSTGRES_USER,
