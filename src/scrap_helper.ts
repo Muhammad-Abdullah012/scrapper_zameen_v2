@@ -26,8 +26,6 @@ import {
   IProperty_V2_Data,
 } from "./types";
 
-require("dotenv").config();
-
 const logger = mainLogger.child({ file: "scrap_helper" });
 
 export const scrapeHtmlPage = async (
