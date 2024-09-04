@@ -221,7 +221,7 @@ export const processInBatches = async (pages: Promise<IPagesData[]>[]) => {
       pages.map((page) => limiter.schedule(() => getHtmlPage(page)))
     );
 
-    logger.info(`dateToInsert length => ${dataToInsert.length}`);
+    logger.info(`dataToInsert length => ${dataToInsert.length}`);
 
     try {
       await RawProperty.bulkCreate(dataToInsert as IRawProperty[], {
