@@ -117,7 +117,7 @@ const processPage = async (
   const mainPage = await axios.get(link);
   const $ = cheerio.load(mainPage.data);
   const listings = $('li[aria-label="Listing"][role="article"]');
-
+  let shouldStopLoop = false;
   const lastDateInDb = await lastAddedDbPromise;
 
   const listingLinks = listings
@@ -153,6 +153,9 @@ const processPage = async (
       const date = new Date(dateStr);
       const dbDate = new Date(lastDateInDb);
 
+      if (dbDate >= date) {
+        shouldStopLoop = true;
+      }
       return dbDate < date
         ? {
             url: `${process.env.BASE_URL}${listingLink ?? ""}`,
@@ -163,7 +166,7 @@ const processPage = async (
     .get()
     .filter((v) => v != null);
   logger.info(`filtered listing links ==> ${listingLinks.length}`);
-  return listingLinks;
+  return { listingLinks, shouldStopLoop };
 };
 
 export const getHtmlPage = async (page: IPagesData) => {
@@ -197,12 +200,13 @@ export const getFilteredPages = async (
   for (let i = 1; i <= 50; ++i) {
     logger.info(`fetchDataForIndex at index :: ${i}, ${page.cityId}`);
     const url = page.url.replace("*", i.toString());
-    const listingUrls = await processPage(
+    const { listingLinks, shouldStopLoop } = await processPage(
       url,
       page.cityId,
       cityLastAddedMap[page.cityId]
     );
-    newPages.push(...listingUrls);
+    newPages.push(...listingLinks);
+    if (shouldStopLoop) break;
   }
 
   return newPages.reverse();
