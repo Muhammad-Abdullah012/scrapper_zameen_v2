@@ -3,13 +3,7 @@ import * as cheerio from "cheerio";
 import { Op } from "sequelize";
 import axios from "axios";
 
-import {
-  insertAgency,
-  alreadyExists,
-  insertIntoLocation,
-  insertIntoPropertyV2,
-  lastAdded,
-} from "./queries";
+import { insertAgency, insertIntoLocation } from "./queries";
 import { limiter, logger as mainLogger } from "./config";
 import { IRawProperty, Property, RawProperty } from "./types/model";
 import {
@@ -18,13 +12,7 @@ import {
   getExternalId,
   relativeTimeToTimestamp,
 } from "./utils/utils";
-import {
-  Feature,
-  IDataToInsert,
-  IFilteredUrls,
-  IPagesData,
-  IProperty_V2_Data,
-} from "./types";
+import { Feature, IPagesData } from "./types";
 
 const logger = mainLogger.child({ file: "scrap_helper" });
 
