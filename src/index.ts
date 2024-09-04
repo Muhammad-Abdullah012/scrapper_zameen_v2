@@ -3,7 +3,7 @@ import { City } from "./types/model";
 import { getUrl } from "./utils/utils";
 import { logger as mainLogger } from "./config";
 import {
-  getFilteredUrls,
+  getFilteredPages,
   processInBatches,
   scrapAndInsertData,
 } from "./scrap_helper";
@@ -52,10 +52,9 @@ const BATCH_SIZE = 20;
       ).flat(2);
       logger.info(`Pages :: ${pages.length}`);
       await processInBatches(
-        pages.map((p) => getFilteredUrls(p, citiesLastAddedMap)),
-        BATCH_SIZE,
-        citiesLastAddedMap
+        pages.map((p) => getFilteredPages(p, citiesLastAddedMap))
       );
+
       logger.info(`Scraping completed successfully`);
     }
     logger.info("Adding data to Properties table");

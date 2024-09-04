@@ -16,6 +16,7 @@ import {
   formatKeyValue,
   getAllPromisesResults,
   getExternalId,
+  relativeTimeToTimestamp,
 } from "./utils/utils";
 import {
   Feature,
@@ -109,72 +110,62 @@ export const scrapeHtmlPage = async (
   return keyValue;
 };
 
-const processPage = async (link: string) => {
+const processPage = async (
+  link: string,
+  cityId: number,
+  lastAddedDbPromise: Promise<any>
+) => {
   logger.info("onPage ==> " + link);
   const mainPage = await axios.get(link);
   const $ = cheerio.load(mainPage.data);
-  const listingLinks = $('a[aria-label="Listing link"]')
-    .map((_, element) => {
-      return `${process.env.BASE_URL}${$(element).attr("href") ?? ""}`;
-    })
-    .get();
+  const listings = $('li[aria-label="Listing"][role="article"]');
 
-  return listingLinks.reverse();
-};
+  const lastDateInDb = await lastAddedDbPromise;
 
-const processListing = async (
-  listingUrl: string,
-  lastAdded: Date,
-  cityId: number
-) => {
-  const externalId = getExternalId(listingUrl);
-  const exists = await alreadyExists(externalId);
-  if (exists) {
-    logger.info(`Listing ${listingUrl} already exists`);
-    return;
-  }
-  const result = await scrapeHtmlPage(listingUrl);
-  const addedDate = new Date(result.added);
-  const lastAddedDate = new Date(lastAdded);
-  const isAddedAfter = addedDate.getTime() > lastAddedDate.getTime();
+  const listingLinks = listings
+    .map((_index, element) => {
+      const li = $(element);
 
-  if (isAddedAfter) {
-    await insertIntoPropertyV2(result as IProperty_V2_Data, cityId, externalId);
-  }
+      const listingLink = li.find('a[aria-label="Listing link"]').attr("href");
 
-  return isAddedAfter;
-};
-
-export const scrapListing = async (
-  url: string,
-  lastAdded: Date,
-  cityId: number
-) => {
-  let nextLink: string | null = url;
-
-  do {
-    try {
-      const listingLinks = await processPage(nextLink);
-      const promises = listingLinks.map((link) =>
-        processListing(link, lastAdded, cityId)
-      );
-      const results = await Promise.allSettled(promises);
-
-      const containsOldValue = results.some(
-        (result) => result.status === "fulfilled" && result.value === false
+      const creationDateSpan = li.find(
+        'span[aria-label="Listing creation date"]'
       );
 
-      if (containsOldValue) break;
+      const creationDate = creationDateSpan
+        .text()
+        .trim()
+        .split(":")
+        .pop()
+        ?.trim();
 
-      const mainPage = await axios.get(nextLink);
-      const $ = cheerio.load(mainPage.data);
-      nextLink = $('a[title="Next"]').attr("href")
-        ? `${process.env.BASE_URL}${$('a[title="Next"]').attr("href")}`
+      if (!creationDate) {
+        logger.error(`Creation date not found for ${listingLink}`);
+        return null;
+      }
+
+      const dateStr = relativeTimeToTimestamp(creationDate);
+
+      if (!dateStr) {
+        logger.error(
+          `Could not convert date for ${listingLink}, date was: ${creationDate}`
+        );
+        return null;
+      }
+      const date = new Date(dateStr);
+      const dbDate = new Date(lastDateInDb);
+
+      return dbDate < date
+        ? {
+            url: `${process.env.BASE_URL}${listingLink ?? ""}`,
+            cityId,
+          }
         : null;
-    } catch (error) {
-      logger.error(`Error scraping ${nextLink}: ${error}`);
-    }
-  } while (nextLink != null);
+    })
+    .get()
+    .filter((v) => v != null);
+  logger.info(`filtered listing links ==> ${listingLinks.length}`);
+  return listingLinks;
 };
 
 export const getHtmlPage = async (page: IPagesData) => {
@@ -200,156 +191,50 @@ export const getHtmlPage = async (page: IPagesData) => {
   }
 };
 
-const extractAddedDateFromHtml = (html: string = "") => {
-  if (!html) return {};
-  const $ = cheerio.load(html);
-  const keyValue: { [key: string]: any } = {};
-  $('ul[aria-label="Property details" i] li').each(function (i, elem) {
-    const spans = $(this)
-      .children("span")
-      .filter(function () {
-        return $(this).text().trim() !== "";
-      });
-    const key = $(spans[0]).text();
-    const value = spans
-      .slice(1)
-      .map(function () {
-        return $(this).text();
-      })
-      .get()
-      .join(" ");
-
-    const lowerCaseKey = key.split("(")[0].toLowerCase().replace(/\s+/g, "_");
-    keyValue[lowerCaseKey] = formatKeyValue(lowerCaseKey, value);
-  });
-  return keyValue;
-};
-
-const fetchDataForIndex = async (
-  page: IPagesData,
-  idx: number,
-  lastAddedDbPromise: Promise<any>
-) => {
-  const url = page.url.replace("*", idx.toString());
-  logger.info(`scraping url ==> ${url}`);
-  const lastPage = (await processPage(url)).at(-1);
-
-  if (!lastPage) return null;
-
-  const p = await getHtmlPage({ ...page, url: lastPage });
-  const scrapedData = extractAddedDateFromHtml(p?.html);
-  const lastAddedDb = await lastAddedDbPromise;
-
-  return {
-    idx,
-    addedDate: new Date(scrapedData.added).getTime(),
-    lastAddedDate: new Date(lastAddedDb).getTime(),
-  };
-};
-
-const filterOutExistingProperties = async (
-  url: string,
-  cityId: number,
-  lastAddedDbPromise: Promise<any>
-) => {
-  const p = await getHtmlPage({ url, cityId });
-  const scrapedData = extractAddedDateFromHtml(p?.html);
-  const lastAddedDb = await lastAddedDbPromise;
-
-  const addedDate = new Date(scrapedData.added).getTime();
-  const lastAddedDate = new Date(lastAddedDb).getTime();
-
-  return addedDate > lastAddedDate;
-};
-
-export const getFilteredUrls = async (
+export const getFilteredPages = async (
   page: IPagesData,
   cityLastAddedMap: Record<number, Promise<any>>
 ) => {
+  const newPages: IPagesData[] = [];
   for (let i = 1; i <= 50; ++i) {
     logger.info(`fetchDataForIndex at index :: ${i}, ${page.cityId}`);
-    const results = await fetchDataForIndex(
-      page,
-      i,
+    const url = page.url.replace("*", i.toString());
+    const listingUrls = await processPage(
+      url,
+      page.cityId,
       cityLastAddedMap[page.cityId]
     );
-    if (!results) return { page, idx: i };
-    const { idx, addedDate, lastAddedDate } = results;
-    if (addedDate < lastAddedDate) {
-      return { page, idx };
-    }
+    newPages.push(...listingUrls);
   }
-  return { page, idx: 50 };
+
+  return newPages.reverse();
 };
 
-const processUrl = async (
-  url: string,
-  cityId: number,
-  cityLastAddedMap: Record<number, Promise<any>>
-) => {
-  const pageResults = await processPage(url);
-  const filterPromises = pageResults.map(async (result) => {
-    const shouldInclude = await filterOutExistingProperties(
-      result,
-      cityId,
-      cityLastAddedMap[cityId]
-    );
-    return shouldInclude ? result : null;
-  });
-
-  const pageUrls = await getAllPromisesResults(filterPromises);
-
-  return pageUrls.map((value) => ({
-    url: value as string,
-    cityId,
-  }));
-};
-
-export const processInBatches = async (
-  pages: Promise<{ page: IPagesData; idx: number }>[],
-  batchSize: number,
-  cityLastAddedMap: Record<number, Promise<any>>
-) => {
+export const processInBatches = async (pages: Promise<IPagesData[]>[]) => {
   console.time("filtering urls...");
-  const filteredUrls = await getAllPromisesResults(pages);
+  const filteredPages = await getAllPromisesResults(pages);
   console.timeEnd("filtering urls...");
 
-  console.time("processing filteredUrls...");
-  const filtered = await getAllPromisesResults(
-    filteredUrls.map((v) => {
-      const { idx, page } = v;
-      const urlsToProcess = Array.from({ length: idx }, (_, i) =>
-        page.url.replace("*", (idx - i).toString())
-      );
-      logger.info("starting processing urls ");
+  logger.info(`filteredPages length => ${filteredPages.length}`);
+  const promises = filteredPages.map(async (pages) => {
+    logger.info(`total urls to fetch => ${pages.length}`);
 
-      return getAllPromisesResults(
-        urlsToProcess.map((url) =>
-          limiter.schedule(() => processUrl(url, page.cityId, cityLastAddedMap))
-        )
-      );
-    })
-  );
-  console.timeEnd("processing filteredUrls...");
-  const flattenedFiltered = filtered.flat(3);
-  logger.info(`flattenedFiltered at ${flattenedFiltered.length}`);
-  console.time("getting html for filteredUrls...");
-  const dataToInsert = await getAllPromisesResults(
-    flattenedFiltered.map((url) => limiter.schedule(() => getHtmlPage(url)))
-  );
+    const dataToInsert = await getAllPromisesResults(
+      pages.map((page) => limiter.schedule(() => getHtmlPage(page)))
+    );
 
-  console.timeEnd("getting html for filteredUrls...");
+    logger.info(`dateToInsert length => ${dataToInsert.length}`);
 
-  console.log("dataToInsert => ", dataToInsert.length);
-
-  try {
-    await RawProperty.bulkCreate(dataToInsert as IRawProperty[], {
-      ignoreDuplicates: true,
-      returning: false,
-    });
-  } catch (err) {
-    logger.error(`Error inserting batch in RawProperty : ${err}`);
-  }
+    try {
+      await RawProperty.bulkCreate(dataToInsert as IRawProperty[], {
+        ignoreDuplicates: true,
+        returning: false,
+      });
+    } catch (err) {
+      logger.error(`Error inserting batch in RawProperty : ${err}`);
+    }
+  });
+  return Promise.allSettled(promises);
 };
 
 export const scrapAndInsertData = async (batchSize: number) => {
@@ -364,14 +249,12 @@ export const scrapAndInsertData = async (batchSize: number) => {
     attributes: ["url", "html", "city_id"],
   });
   for (let i = 0; i < rawData.length; i += batchSize) {
-    const dataToInsertdResult = await Promise.allSettled(
+    const dataToInsert = await getAllPromisesResults(
       rawData
         .slice(i, i + batchSize)
         .map(({ url, html, city_id }) => scrapeHtmlPage(url, html, city_id))
     );
-    const dataToInsert = dataToInsertdResult.map((v) =>
-      v.status === "fulfilled" ? v.value : {}
-    );
+
     try {
       await Property.bulkCreate(dataToInsert as any, {
         ignoreDuplicates: true,

@@ -29,34 +29,39 @@ export const formatPrice = (price: string) => {
 };
 
 export const relativeTimeToTimestamp = (relativeTime: string) => {
-  const now = new Date();
+  try {
+    const now = new Date();
 
-  let timestamp;
-  if (relativeTime.includes("second")) {
-    const secondsAgo = parseInt(relativeTime.split(" ")[0]);
-    timestamp = new Date(now.getTime() - secondsAgo * 1000);
-  } else if (relativeTime.includes("minute")) {
-    const minutesAgo = parseInt(relativeTime.split(" ")[0]);
-    timestamp = new Date(now.getTime() - minutesAgo * 60000);
-  } else if (relativeTime.includes("hour")) {
-    const hoursAgo = parseInt(relativeTime.split(" ")[0]);
-    timestamp = new Date(now.getTime() - hoursAgo * 3600000);
-  } else if (relativeTime.includes("day")) {
-    const daysAgo = parseInt(relativeTime.split(" ")[0]);
-    timestamp = new Date(now.getTime() - daysAgo * 86400000);
-  } else if (relativeTime.includes("week")) {
-    const weeksAgo = parseInt(relativeTime.split(" ")[0]);
-    timestamp = new Date(now.getTime() - weeksAgo * 604800000);
-  } else if (relativeTime.includes("month")) {
-    const monthsAgo = parseInt(relativeTime.split(" ")[0]);
-    // Assuming a month has 30 days for simplicity
-    timestamp = new Date(now.getTime() - monthsAgo * 2592000000);
-  } else {
-    logger.debug(`relative time format is not correct: ${relativeTime}`);
+    let timestamp;
+    if (relativeTime.includes("second")) {
+      const secondsAgo = parseInt(relativeTime.split(" ")[0]);
+      timestamp = new Date(now.getTime() - secondsAgo * 1000);
+    } else if (relativeTime.includes("minute")) {
+      const minutesAgo = parseInt(relativeTime.split(" ")[0]);
+      timestamp = new Date(now.getTime() - minutesAgo * 60000);
+    } else if (relativeTime.includes("hour")) {
+      const hoursAgo = parseInt(relativeTime.split(" ")[0]);
+      timestamp = new Date(now.getTime() - hoursAgo * 3600000);
+    } else if (relativeTime.includes("day")) {
+      const daysAgo = parseInt(relativeTime.split(" ")[0]);
+      timestamp = new Date(now.getTime() - daysAgo * 86400000);
+    } else if (relativeTime.includes("week")) {
+      const weeksAgo = parseInt(relativeTime.split(" ")[0]);
+      timestamp = new Date(now.getTime() - weeksAgo * 604800000);
+    } else if (relativeTime.includes("month")) {
+      const monthsAgo = parseInt(relativeTime.split(" ")[0]);
+      // Assuming a month has 30 days for simplicity
+      timestamp = new Date(now.getTime() - monthsAgo * 2592000000);
+    } else {
+      logger.debug(`relative time format is not correct: ${relativeTime}`);
+      return null;
+    }
+
+    return timestamp.toISOString();
+  } catch (e) {
+    logger.error(`Error converting to timestamp : ${e}`);
     return null;
   }
-
-  return timestamp.toISOString();
 };
 
 export const getUrl = (
