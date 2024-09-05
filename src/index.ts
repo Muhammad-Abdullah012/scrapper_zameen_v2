@@ -1,8 +1,13 @@
-// import puppeteer, { Browser } from "puppeteer";
-import { scrapListing } from "./scrap_helper";
+import { Op } from "sequelize";
+import { City } from "./types/model";
 import { getUrl } from "./utils/utils";
 import { logger as mainLogger } from "./config";
-import { insertIntoCity, lastAdded } from "./queries";
+import {
+  getFilteredPages,
+  processInBatches,
+  scrapAndInsertData,
+} from "./scrap_helper";
+import { lastAdded } from "./queries";
 
 const logger = mainLogger.child({ file: "index" });
 
@@ -10,35 +15,57 @@ const PROPERTY_TYPES = ["Homes", "Plots", "Commercial"];
 const PROPERTY_PURPOSE = ["Buy", "Rent"];
 const CITIES = ["Islamabad-3", "Karachi-2", "Lahore-1", "Rawalpindi-41"];
 
+const BATCH_SIZE = 20;
+
 (async () => {
-  // let browser: Browser | null = null;
   try {
-    // browser = await puppeteer.launch({ args: ["--no-sandbox"] });
-    for (const city of CITIES) {
-      const cityName = city.split("-")[0];
-      const cityId = await insertIntoCity(cityName);
-      const lastAddedPromise = lastAdded(cityId);
-      for (const propertyType of PROPERTY_TYPES) {
-        for (const purpose of PROPERTY_PURPOSE) {
-          const url = getUrl(propertyType, city, purpose);
-          const LAST_ADDED = await lastAddedPromise;
-          await Promise.allSettled([
-            scrapListing(url, LAST_ADDED, cityId).catch((err) => {
-              logger.error(`Error scraping ${url}: ${err}`);
-            }),
-            // Remove stories for now because we don't store ads on zameen.com
-            // scrapStoriesListings(url, browser, cityId).catch((err) => {
-            //   logger.error(`Error scraping story ${url}: ${err}`);
-            // }),
-          ]);
+    console.time("Start scraping and inserting data");
+    {
+      const cityModels = await City.findAll({
+        where: {
+          name: {
+            [Op.in]: CITIES.map((c) => c.split("-")[0]),
+          },
+        },
+        attributes: ["id", "name"],
+      });
+
+      const citiesMap = cityModels.reduce((acc, city) => {
+        const cityKey = CITIES.find((c) => c.startsWith(city.name));
+        if (cityKey) {
+          acc[cityKey] = city.id;
         }
-      }
+        return acc;
+      }, {} as Record<string, number>);
+
+      const citiesLastAddedMap = cityModels.reduce((acc, city) => {
+        acc[city.id] = lastAdded(city.id);
+        return acc;
+      }, {} as Record<number, Promise<any>>);
+
+      const pages = CITIES.map((city) =>
+        PROPERTY_TYPES.map((propertyType) =>
+          PROPERTY_PURPOSE.map((purpose) =>
+            getUrl(propertyType, city, purpose, citiesMap[city])
+          )
+        )
+      ).flat(2);
+      logger.info(`Pages :: ${pages.length}`);
+      await processInBatches(
+        pages.map((p) => getFilteredPages(p, citiesLastAddedMap))
+      );
+
+      logger.info(`Scraping completed successfully`);
     }
+    logger.info("Adding data to Properties table");
+    await scrapAndInsertData(BATCH_SIZE);
+    logger.info("Data added to Properties table successfully");
   } catch (err) {
     logger.error(err);
   } finally {
-    // if (browser) {
-    //   browser.close();
-    // }
+    console.timeEnd("Start scraping and inserting data");
   }
-})();
+})().catch((err) => {
+  logger.fatal(`Unhandled error: ${err.message}`, { error: err });
+  process.exit(1);
+});

@@ -29,42 +29,55 @@ export const formatPrice = (price: string) => {
 };
 
 export const relativeTimeToTimestamp = (relativeTime: string) => {
-  const now = new Date();
+  try {
+    const now = new Date();
 
-  let timestamp;
-  if (relativeTime.includes("second")) {
-    const secondsAgo = parseInt(relativeTime.split(" ")[0]);
-    timestamp = new Date(now.getTime() - secondsAgo * 1000);
-  } else if (relativeTime.includes("minute")) {
-    const minutesAgo = parseInt(relativeTime.split(" ")[0]);
-    timestamp = new Date(now.getTime() - minutesAgo * 60000);
-  } else if (relativeTime.includes("hour")) {
-    const hoursAgo = parseInt(relativeTime.split(" ")[0]);
-    timestamp = new Date(now.getTime() - hoursAgo * 3600000);
-  } else if (relativeTime.includes("day")) {
-    const daysAgo = parseInt(relativeTime.split(" ")[0]);
-    timestamp = new Date(now.getTime() - daysAgo * 86400000);
-  } else if (relativeTime.includes("week")) {
-    const weeksAgo = parseInt(relativeTime.split(" ")[0]);
-    timestamp = new Date(now.getTime() - weeksAgo * 604800000);
-  } else if (relativeTime.includes("month")) {
-    const monthsAgo = parseInt(relativeTime.split(" ")[0]);
-    // Assuming a month has 30 days for simplicity
-    timestamp = new Date(now.getTime() - monthsAgo * 2592000000);
-  } else {
-    logger.debug(`relative time format is not correct: ${relativeTime}`);
+    let timestamp;
+    if (relativeTime.includes("second")) {
+      const secondsAgo = parseInt(relativeTime.split(" ")[0]);
+      timestamp = new Date(now.getTime() - secondsAgo * 1000);
+    } else if (relativeTime.includes("minute")) {
+      const minutesAgo = parseInt(relativeTime.split(" ")[0]);
+      timestamp = new Date(now.getTime() - minutesAgo * 60000);
+    } else if (relativeTime.includes("hour")) {
+      const hoursAgo = parseInt(relativeTime.split(" ")[0]);
+      timestamp = new Date(now.getTime() - hoursAgo * 3600000);
+    } else if (relativeTime.includes("day")) {
+      const daysAgo = parseInt(relativeTime.split(" ")[0]);
+      timestamp = new Date(now.getTime() - daysAgo * 86400000);
+    } else if (relativeTime.includes("week")) {
+      const weeksAgo = parseInt(relativeTime.split(" ")[0]);
+      timestamp = new Date(now.getTime() - weeksAgo * 604800000);
+    } else if (relativeTime.includes("month")) {
+      const monthsAgo = parseInt(relativeTime.split(" ")[0]);
+      // Assuming a month has 30 days for simplicity
+      timestamp = new Date(now.getTime() - monthsAgo * 2592000000);
+    } else {
+      logger.debug(`relative time format is not correct: ${relativeTime}`);
+      return null;
+    }
+
+    return timestamp.toISOString();
+  } catch (e) {
+    logger.error(`Error converting to timestamp : ${e}`);
     return null;
   }
-
-  return timestamp.toISOString();
 };
 
-export const getUrl = (propertyType: string, city: string, purpose: string) => {
+export const getUrl = (
+  propertyType: string,
+  city: string,
+  purpose: string,
+  cityId: number
+) => {
   let type = purpose === "Rent" ? "Rentals" : propertyType;
   if (purpose === "Rent" && ["Plots", "Commercial"].includes(propertyType)) {
     type += "_" + propertyType;
   }
-  return `${process.env.BASE_URL}/${type}/${city}-1.html?sort=date_desc`;
+  return {
+    url: `${process.env.BASE_URL}/${type}/${city}-*.html?sort=date_desc`,
+    cityId,
+  };
 };
 
 export const getExternalId = (url: string) => {
@@ -136,4 +149,13 @@ export const formatKeyValue = (key: string, value: string) => {
   }
 
   return value;
+};
+
+export const getAllPromisesResults = async <T>(
+  promises: Promise<T>[]
+): Promise<T[]> => {
+  const promiseResults = await Promise.allSettled(promises);
+  return promiseResults
+    .map((result) => (result.status === "fulfilled" ? result.value : null))
+    .filter((v) => v != null);
 };

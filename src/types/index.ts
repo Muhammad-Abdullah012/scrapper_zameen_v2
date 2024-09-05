@@ -28,3 +28,26 @@ export interface IinsertIntoAgencyProps {
   title: string | undefined;
   profileUrl: string | undefined;
 }
+
+export interface IPropertiesDataToInsert {
+  result: IProperty_V2_Data;
+  externalId: number | null;
+  cityId: number;
+}
+
+export interface IPagesData {
+  url: string;
+  cityId: number;
+}
+
+export interface IFilteredUrls {
+  page: IPagesData;
+  idx: number;
+}
+
+export interface IDataToInsert {
+  url: string;
+  city_id: number;
+  html: string;
+  external_id: number | null;
+}
