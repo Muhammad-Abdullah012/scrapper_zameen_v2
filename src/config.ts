@@ -23,6 +23,6 @@ export const pool = new Pool({
 });
 
 export const limiter = new Bottleneck({
-  maxConcurrent: 250,
+  maxConcurrent: 50,
   minTime: 10,
 });

@@ -208,20 +208,24 @@ export const processInBatches = async (pages: Promise<IPagesData[]>[]) => {
   logger.info(`filteredPages length => ${filteredPages.length}`);
   const promises = filteredPages.map(async (pages) => {
     logger.info(`total urls to fetch => ${pages.length}`);
+    const batchSize = 100;
 
-    const dataToInsert = await getAllPromisesResults(
-      pages.map((page) => limiter.schedule(() => getHtmlPage(page)))
-    );
+    for (let i = 0; i < pages.length; i += batchSize) {
+      const batch = pages.slice(i, i + batchSize);
+      const dataToInsert = await getAllPromisesResults(
+        batch.map((page) => limiter.schedule(() => getHtmlPage(page)))
+      );
 
-    logger.info(`dataToInsert length => ${dataToInsert.length}`);
+      logger.info(`dataToInsert length => ${dataToInsert.length}`);
 
-    try {
-      await RawProperty.bulkCreate(dataToInsert as IRawProperty[], {
-        ignoreDuplicates: true,
-        returning: false,
-      });
-    } catch (err) {
-      logger.error(`Error inserting batch in RawProperty : ${err}`);
+      try {
+        await RawProperty.bulkCreate(dataToInsert as IRawProperty[], {
+          ignoreDuplicates: true,
+          returning: false,
+        });
+      } catch (err) {
+        logger.error(`Error inserting batch in RawProperty : ${err}`);
+      }
     }
   });
   return Promise.allSettled(promises);
