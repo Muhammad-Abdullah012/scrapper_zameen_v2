@@ -231,19 +231,30 @@ export const processInBatches = async (pages: Promise<IPagesData[]>[]) => {
 export const scrapAndInsertData = async (batchSize: number) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const rawData = await RawProperty.findAll({
-    where: {
-      created_at: {
-        [Op.gte]: today,
+
+  const pageSize = 100;
+  let page = 0;
+
+  while (true) {
+    const rawData = await RawProperty.findAll({
+      where: {
+        created_at: {
+          [Op.gte]: today,
+        },
       },
-    },
-    attributes: ["url", "html", "city_id"],
-  });
-  for (let i = 0; i < rawData.length; i += batchSize) {
+      attributes: ["url", "html", "city_id"],
+      limit: pageSize,
+      offset: page * pageSize,
+    });
+
+    if (rawData.length === 0) {
+      break;
+    }
+
     const dataToInsert = await getAllPromisesResults(
-      rawData
-        .slice(i, i + batchSize)
-        .map(({ url, html, city_id }) => scrapeHtmlPage(url, html, city_id))
+      rawData.map(({ url, html, city_id }) =>
+        scrapeHtmlPage(url, html, city_id)
+      )
     );
 
     try {
@@ -253,9 +264,8 @@ export const scrapAndInsertData = async (batchSize: number) => {
         logging: false,
       });
     } catch (err) {
-      logger.error(
-        `Error inserting batch in Property ${i + 1}-${i + batchSize}: ${err}`
-      );
+      logger.error("scrapAndInsertData::Error inserting data: ", err);
     }
+    ++page;
   }
 };
