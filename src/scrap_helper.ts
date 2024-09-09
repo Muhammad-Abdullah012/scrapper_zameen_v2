@@ -218,17 +218,14 @@ export const processInBatches = async (pages: Promise<IPagesData[]>[]) => {
 
       logger.info(`dataToInsert length => ${dataToInsert.length}`);
 
-      try {
-        await RawProperty.bulkCreate(dataToInsert as IRawProperty[], {
-          ignoreDuplicates: true,
-          returning: false,
-        });
-      } catch (err) {
-        logger.error(`Error inserting batch in RawProperty : ${err}`);
-      }
+      await RawProperty.bulkCreate(dataToInsert as IRawProperty[], {
+        ignoreDuplicates: true,
+        returning: false,
+        logging: false,
+      });
     }
   });
-  return Promise.allSettled(promises);
+  return Promise.all(promises);
 };
 
 export const scrapAndInsertData = async (batchSize: number) => {
@@ -253,6 +250,7 @@ export const scrapAndInsertData = async (batchSize: number) => {
       await Property.bulkCreate(dataToInsert as any, {
         ignoreDuplicates: true,
         returning: false,
+        logging: false,
       });
     } catch (err) {
       logger.error(

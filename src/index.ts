@@ -61,11 +61,9 @@ const BATCH_SIZE = 20;
     await scrapAndInsertData(BATCH_SIZE);
     logger.info("Data added to Properties table successfully");
   } catch (err) {
-    logger.error(err);
+    logger.fatal(err);
+    process.exit(1);
   } finally {
     console.timeEnd("Start scraping and inserting data");
   }
-})().catch((err) => {
-  logger.fatal(`Unhandled error: ${err.message}`, { error: err });
-  process.exit(1);
-});
+})();

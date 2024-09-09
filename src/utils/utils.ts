@@ -154,8 +154,6 @@ export const formatKeyValue = (key: string, value: string) => {
 export const getAllPromisesResults = async <T>(
   promises: Promise<T>[]
 ): Promise<T[]> => {
-  const promiseResults = await Promise.allSettled(promises);
-  return promiseResults
-    .map((result) => (result.status === "fulfilled" ? result.value : null))
-    .filter((v) => v != null);
+  const promiseResults = await Promise.all(promises);
+  return promiseResults.filter((v) => v != null);
 };
