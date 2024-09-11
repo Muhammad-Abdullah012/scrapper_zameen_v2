@@ -3,7 +3,7 @@ import { spawn } from "child_process";
 import { pool } from "./config";
 
 const job = new CronJob(
-  "0 4 * * *",
+  "0 0 * * *",
   function () {
     const task1 = spawn("pnpm", ["run", "start"], {
       stdio: "inherit",
