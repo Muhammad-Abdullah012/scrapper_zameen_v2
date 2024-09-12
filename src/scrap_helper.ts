@@ -5,7 +5,7 @@ import axios from "axios";
 
 import { insertAgency, insertIntoLocation } from "./queries";
 import { limiter, logger as mainLogger } from "./config";
-import { IRawProperty, Property, RawProperty } from "./types/model";
+import { IRawProperty, Property, RawProperty, UrlModel } from "./types/model";
 import {
   formatKeyValue,
   getAllPromisesResults,
@@ -200,50 +200,66 @@ export const getFilteredPages = async (
   return newPages.reverse();
 };
 
-export const processInBatches = async (pages: Promise<IPagesData[]>[]) => {
-  console.time("filtering urls...");
-  const filteredPages = await getAllPromisesResults(pages);
-  console.timeEnd("filtering urls...");
+export const processInBatches = async () => {
+  const batchSize = 100;
+  let page = 0;
 
-  logger.info(`filteredPages length => ${filteredPages.length}`);
-  const promises = filteredPages.map(async (pages) => {
-    logger.info(`total urls to fetch => ${pages.length}`);
-    const batchSize = 100;
+  while (true) {
+    const batch = await UrlModel.findAll({
+      where: { is_processed: false },
+      attributes: ["url", "city_id"],
+      limit: batchSize,
+      offset: page * batchSize,
+    });
 
-    for (let i = 0; i < pages.length; i += batchSize) {
-      const batch = pages.slice(i, i + batchSize);
-      const dataToInsert = await getAllPromisesResults(
-        batch.map((page) => limiter.schedule(() => getHtmlPage(page)))
+    if (batch.length === 0) break;
+
+    const dataToInsert = await getAllPromisesResults(
+      batch.map((page: any) =>
+        limiter.schedule(() =>
+          getHtmlPage({ url: page.url, cityId: page.city_id })
+        )
+      )
+    );
+
+    logger.info(`dataToInsert length => ${dataToInsert.length}`);
+
+    try {
+      const insertedUrls = await RawProperty.bulkCreate(
+        dataToInsert as IRawProperty[],
+        {
+          ignoreDuplicates: true,
+          returning: ["url"],
+          logging: false,
+        }
       );
 
-      logger.info(`dataToInsert length => ${dataToInsert.length}`);
-
-      try {
-        await RawProperty.bulkCreate(dataToInsert as IRawProperty[], {
-          ignoreDuplicates: true,
-          returning: false,
-        });
-      } catch (err) {
-        logger.error(`Error inserting batch in RawProperty : ${err}`);
-      }
+      await UrlModel.update(
+        { is_processed: true },
+        {
+          where: {
+            url: {
+              [Op.in]: insertedUrls.map((d) => d?.url),
+            },
+          },
+          logging: false,
+        }
+      );
+    } catch (err) {
+      logger.error(`Error inserting batch in RawProperty : ${err}`);
     }
-  });
-  return Promise.allSettled(promises);
+    ++page;
+  }
 };
 
 export const scrapAndInsertData = async (batchSize: number) => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
   const pageSize = 100;
   let page = 0;
 
   while (true) {
     const rawData = await RawProperty.findAll({
       where: {
-        created_at: {
-          [Op.gte]: today,
-        },
+        is_processed: false,
       },
       attributes: ["url", "html", "city_id"],
       limit: pageSize,
@@ -261,10 +277,23 @@ export const scrapAndInsertData = async (batchSize: number) => {
     );
 
     try {
-      await Property.bulkCreate(dataToInsert as any, {
+      const insertedUrls = await Property.bulkCreate(dataToInsert as any, {
         ignoreDuplicates: true,
-        returning: false,
+        returning: ["url"],
+        logging: false,
       });
+
+      await RawProperty.update(
+        { is_processed: true },
+        {
+          where: {
+            url: {
+              [Op.in]: insertedUrls.map((d) => d?.url),
+            },
+          },
+          logging: false,
+        }
+      );
     } catch (err) {
       logger.error("scrapAndInsertData::Error inserting data: ", err);
     }

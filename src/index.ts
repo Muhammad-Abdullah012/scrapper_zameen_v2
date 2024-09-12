@@ -1,6 +1,6 @@
 import { Op } from "sequelize";
-import { City } from "./types/model";
-import { getUrl } from "./utils/utils";
+import { City, UrlModel } from "./types/model";
+import { getAllPromisesResults, getUrl } from "./utils/utils";
 import { logger as mainLogger } from "./config";
 import {
   getFilteredPages,
@@ -43,17 +43,31 @@ const BATCH_SIZE = 20;
         return acc;
       }, {} as Record<number, Promise<any>>);
 
-      const pages = CITIES.map((city) =>
-        PROPERTY_TYPES.map((propertyType) =>
-          PROPERTY_PURPOSE.map((purpose) =>
-            getUrl(propertyType, city, purpose, citiesMap[city])
+      {
+        const pages = CITIES.map((city) =>
+          PROPERTY_TYPES.map((propertyType) =>
+            PROPERTY_PURPOSE.map((purpose) =>
+              getUrl(propertyType, city, purpose, citiesMap[city])
+            )
           )
-        )
-      ).flat(2);
-      logger.info(`Pages :: ${pages.length}`);
-      await processInBatches(
-        pages.map((p) => getFilteredPages(p, citiesLastAddedMap))
-      );
+        ).flat(2);
+        logger.info(`Pages :: ${pages.length}`);
+        const filteredPages = await getAllPromisesResults(
+          pages.map((p) => getFilteredPages(p, citiesLastAddedMap))
+        );
+
+        await UrlModel.bulkCreate(
+          filteredPages
+            .flat(1)
+            .map((p) => ({ ...p, city_id: p.cityId })) as any,
+          {
+            ignoreDuplicates: true,
+            returning: false,
+            logging: false,
+          }
+        );
+      }
+      await processInBatches();
 
       logger.info(`Scraping completed successfully`);
     }
