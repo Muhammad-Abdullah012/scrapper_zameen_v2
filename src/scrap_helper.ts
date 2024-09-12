@@ -13,6 +13,7 @@ import {
   relativeTimeToTimestamp,
 } from "./utils/utils";
 import { Feature, IPagesData } from "./types";
+import { sequelize } from "./config/sequelize";
 
 const logger = mainLogger.child({ file: "scrap_helper" });
 
@@ -224,6 +225,7 @@ export const processInBatches = async () => {
 
     logger.info(`dataToInsert length => ${dataToInsert.length}`);
 
+    const transaction = await sequelize.transaction();
     try {
       const insertedUrls = await RawProperty.bulkCreate(
         dataToInsert as IRawProperty[],
@@ -231,6 +233,7 @@ export const processInBatches = async () => {
           ignoreDuplicates: true,
           returning: ["url"],
           logging: false,
+          transaction,
         }
       );
 
@@ -243,10 +246,13 @@ export const processInBatches = async () => {
             },
           },
           logging: false,
+          transaction,
         }
       );
+      await transaction.commit();
     } catch (err) {
       logger.error(`Error inserting batch in RawProperty : ${err}`);
+      await transaction.rollback();
     }
     ++page;
   }
@@ -276,11 +282,13 @@ export const scrapAndInsertData = async (batchSize: number) => {
       )
     );
 
+    const transaction = await sequelize.transaction();
     try {
       const insertedUrls = await Property.bulkCreate(dataToInsert as any, {
         ignoreDuplicates: true,
         returning: ["url"],
         logging: false,
+        transaction,
       });
 
       await RawProperty.update(
@@ -292,10 +300,13 @@ export const scrapAndInsertData = async (batchSize: number) => {
             },
           },
           logging: false,
+          transaction,
         }
       );
+      await transaction.commit();
     } catch (err) {
       logger.error("scrapAndInsertData::Error inserting data: ", err);
+      await transaction.rollback();
     }
     ++page;
   }
