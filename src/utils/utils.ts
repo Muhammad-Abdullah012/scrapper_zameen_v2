@@ -156,6 +156,12 @@ export const getAllPromisesResults = async <T>(
 ): Promise<T[]> => {
   const promiseResults = await Promise.allSettled(promises);
   return promiseResults
-    .map((result) => (result.status === "fulfilled" ? result.value : null))
+    .map((result) => {
+      if (result.status === "rejected") {
+        logger.error(`Error processing promise: ${result.reason}`);
+        return null;
+      }
+      return result.value;
+    })
     .filter((v) => v != null);
 };
