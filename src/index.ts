@@ -21,6 +21,13 @@ const BATCH_SIZE = 20;
   try {
     console.time("Start scraping and inserting data");
     {
+      await City.bulkCreate(
+        CITIES.map((c) => ({ name: c.split("-")[0] })) as any,
+        {
+          ignoreDuplicates: true,
+          returning: ["id", "name"],
+        }
+      );
       const cityModels = await City.findAll({
         where: {
           name: {
