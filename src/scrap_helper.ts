@@ -20,7 +20,8 @@ const logger = mainLogger.child({ file: "scrap_helper" });
 export const scrapeHtmlPage = async (
   url: string,
   html: string = "",
-  cityId?: number
+  cityId?: number,
+  external_id?: number
 ) => {
   if (!html.length) return {};
   const $ = cheerio.load(html);
@@ -48,6 +49,7 @@ export const scrapeHtmlPage = async (
     city_id: cityId,
     cover_photo_url: coverPhotoUrl,
     is_posted_by_agency: agencyInfo.length > 0,
+    external_id,
   };
   $('ul[aria-label="Property details" i] li').each(function (i, elem) {
     const spans = $(this)
@@ -267,7 +269,7 @@ export const scrapAndInsertData = async (batchSize: number) => {
       where: {
         is_processed: false,
       },
-      attributes: ["url", "html", "city_id"],
+      attributes: ["url", "html", "city_id", "external_id"],
       limit: pageSize,
       offset: page * pageSize,
     });
@@ -277,8 +279,8 @@ export const scrapAndInsertData = async (batchSize: number) => {
     }
 
     const dataToInsert = await getAllPromisesResults(
-      rawData.map(({ url, html, city_id }) =>
-        scrapeHtmlPage(url, html, city_id)
+      rawData.map(({ url, html, city_id, external_id }) =>
+        scrapeHtmlPage(url, html, city_id, external_id)
       )
     );
 
