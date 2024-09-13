@@ -1,4 +1,6 @@
+import { Op } from "sequelize";
 import { logger as mainLogger } from "../config";
+import { Property, RawProperty, UrlModel } from "../types/model";
 require("dotenv").config();
 
 const logger = mainLogger.child({ file: "utils" });
@@ -164,4 +166,20 @@ export const getAllPromisesResults = async <T>(
       return result.value;
     })
     .filter((v) => v != null);
+};
+
+export const getTodayInsertedData = async () => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const where = {
+    created_at: {
+      [Op.gte]: today,
+    },
+  };
+  const [urlsCount, rawPropertiesCount, propertiesCount] = await Promise.all([
+    UrlModel.count({ where }),
+    RawProperty.count({ where }),
+    Property.count({ where }),
+  ]);
+  return { urlsCount, rawPropertiesCount, propertiesCount };
 };

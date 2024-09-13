@@ -4,7 +4,7 @@ import { Op } from "sequelize";
 import axios from "axios";
 
 import { insertAgency, insertIntoLocation } from "./queries";
-import { limiter, logger as mainLogger } from "./config";
+import { logger as mainLogger } from "./config";
 import { IRawProperty, Property, RawProperty, UrlModel } from "./types/model";
 import {
   formatKeyValue,
@@ -204,7 +204,7 @@ export const getFilteredPages = async (
 };
 
 export const processInBatches = async () => {
-  const batchSize = 100;
+  const batchSize = 50;
   let page = 0;
 
   while (true) {
@@ -219,9 +219,7 @@ export const processInBatches = async () => {
 
     const dataToInsert = await getAllPromisesResults(
       batch.map((page: any) =>
-        limiter.schedule(() =>
-          getHtmlPage({ url: page.url, cityId: page.city_id })
-        )
+        getHtmlPage({ url: page.url, cityId: page.city_id })
       )
     );
 
@@ -261,7 +259,7 @@ export const processInBatches = async () => {
 };
 
 export const scrapAndInsertData = async (batchSize: number) => {
-  const pageSize = 100;
+  const pageSize = 50;
   let page = 0;
 
   while (true) {
