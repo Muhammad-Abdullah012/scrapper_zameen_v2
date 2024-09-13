@@ -101,6 +101,7 @@ const BATCH_SIZE = 20;
     const payload = {
       text:
         `<!channel> :mega: *Scrapper Completed*\n\n` +
+        `*Today's data stats are as follows:*\n` +
         `*Urls inserted :* ${urlsCount}\n` +
         `*Raw Properties inserted:* ${rawPropertiesCount}\n` +
         `*Properties inserted:* ${propertiesCount}\n`,
