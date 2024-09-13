@@ -41,4 +41,4 @@ jobs:
           REPO_NAME: ${{ github.event.repository.name }}
           EC2_PRIVATE_KEY: ${{ secrets.EC2_PRIVATE_KEY }}
         run: |
-          ssh -i ec2_private_key.pem -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "cd $REPO_NAME && sudo docker compose stop scrapper_zameen && sudo docker image prune -f && sudo docker builder prune -f && sudo docker compose up -d --build scrapper_zameen && echo 'Done'"
+          ssh -i ec2_private_key.pem -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "cd $REPO_NAME && sudo docker compose stop scrapper_zameen && sudo docker image prune -f && sudo docker builder prune -f && sudo docker compose build scrapper_zameen && echo 'Done'"

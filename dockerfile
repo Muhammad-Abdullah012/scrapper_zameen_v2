@@ -22,4 +22,4 @@ RUN pnpm install
 
 COPY . /app
 
-CMD ["pnpm", "run", "start-server"]
+CMD ["pnpm", "run", "start"]
