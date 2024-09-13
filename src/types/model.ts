@@ -8,6 +8,7 @@ import {
   Model,
 } from "sequelize";
 import {
+  URLS_TABLE,
   AGENCY_TABLE,
   CITIES_TABLE,
   LOCATIONS_TABLE,
@@ -238,6 +239,7 @@ export interface IRawProperty
   external_id: number;
   created_at: Date;
   updated_at: Date;
+  is_processed: boolean;
 }
 
 export const RawProperty = sequelize.define<IRawProperty>(
@@ -264,6 +266,11 @@ export const RawProperty = sequelize.define<IRawProperty>(
     external_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
+    },
+    is_processed: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
     },
     created_at: {
       type: DataTypes.DATE,
@@ -484,3 +491,47 @@ CountPropertiesView.init(
     underscored: true,
   }
 );
+
+export class UrlModel extends Model {}
+
+UrlModel.init(
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      autoIncrement: true,
+      primaryKey: true,
+    },
+    url: {
+      type: DataTypes.TEXT,
+      allowNull: false,
+      unique: true,
+    },
+    city_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+    is_processed: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    created_at: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+    },
+    updated_at: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+    },
+  },
+  {
+    sequelize,
+    modelName: "Url",
+    tableName: URLS_TABLE,
+    timestamps: false,
+    underscored: true,
+  }
+);
+
+UrlModel.belongsTo(City, { foreignKey: "city_id" });

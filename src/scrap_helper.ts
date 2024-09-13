@@ -5,7 +5,7 @@ import axios from "axios";
 
 import { insertAgency, insertIntoLocation } from "./queries";
 import { limiter, logger as mainLogger } from "./config";
-import { IRawProperty, Property, RawProperty } from "./types/model";
+import { IRawProperty, Property, RawProperty, UrlModel } from "./types/model";
 import {
   formatKeyValue,
   getAllPromisesResults,
@@ -13,13 +13,15 @@ import {
   relativeTimeToTimestamp,
 } from "./utils/utils";
 import { Feature, IPagesData } from "./types";
+import { sequelize } from "./config/sequelize";
 
 const logger = mainLogger.child({ file: "scrap_helper" });
 
 export const scrapeHtmlPage = async (
   url: string,
   html: string = "",
-  cityId?: number
+  cityId?: number,
+  external_id?: number
 ) => {
   if (!html.length) return {};
   const $ = cheerio.load(html);
@@ -47,6 +49,7 @@ export const scrapeHtmlPage = async (
     city_id: cityId,
     cover_photo_url: coverPhotoUrl,
     is_posted_by_agency: agencyInfo.length > 0,
+    external_id,
   };
   $('ul[aria-label="Property details" i] li').each(function (i, elem) {
     const spans = $(this)
@@ -200,52 +203,73 @@ export const getFilteredPages = async (
   return newPages.reverse();
 };
 
-export const processInBatches = async (pages: Promise<IPagesData[]>[]) => {
-  console.time("filtering urls...");
-  const filteredPages = await getAllPromisesResults(pages);
-  console.timeEnd("filtering urls...");
+export const processInBatches = async () => {
+  const batchSize = 100;
+  let page = 0;
 
-  logger.info(`filteredPages length => ${filteredPages.length}`);
-  const promises = filteredPages.map(async (pages) => {
-    logger.info(`total urls to fetch => ${pages.length}`);
-    const batchSize = 100;
+  while (true) {
+    const batch = await UrlModel.findAll({
+      where: { is_processed: false },
+      attributes: ["url", "city_id"],
+      limit: batchSize,
+      offset: page * batchSize,
+    });
 
-    for (let i = 0; i < pages.length; i += batchSize) {
-      const batch = pages.slice(i, i + batchSize);
-      const dataToInsert = await getAllPromisesResults(
-        batch.map((page) => limiter.schedule(() => getHtmlPage(page)))
+    if (batch.length === 0) break;
+
+    const dataToInsert = await getAllPromisesResults(
+      batch.map((page: any) =>
+        limiter.schedule(() =>
+          getHtmlPage({ url: page.url, cityId: page.city_id })
+        )
+      )
+    );
+
+    logger.info(`dataToInsert length => ${dataToInsert.length}`);
+
+    const transaction = await sequelize.transaction();
+    try {
+      const insertedUrls = await RawProperty.bulkCreate(
+        dataToInsert as IRawProperty[],
+        {
+          ignoreDuplicates: true,
+          returning: ["url"],
+          logging: false,
+          transaction,
+        }
       );
 
-      logger.info(`dataToInsert length => ${dataToInsert.length}`);
-
-      try {
-        await RawProperty.bulkCreate(dataToInsert as IRawProperty[], {
-          ignoreDuplicates: true,
-          returning: false,
-        });
-      } catch (err) {
-        logger.error(`Error inserting batch in RawProperty : ${err}`);
-      }
+      await UrlModel.update(
+        { is_processed: true },
+        {
+          where: {
+            url: {
+              [Op.in]: insertedUrls.map((d) => d?.url),
+            },
+          },
+          logging: false,
+          transaction,
+        }
+      );
+      await transaction.commit();
+    } catch (err) {
+      logger.error(`Error inserting batch in RawProperty : ${err}`);
+      await transaction.rollback();
     }
-  });
-  return Promise.allSettled(promises);
+    ++page;
+  }
 };
 
 export const scrapAndInsertData = async (batchSize: number) => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
   const pageSize = 100;
   let page = 0;
 
   while (true) {
     const rawData = await RawProperty.findAll({
       where: {
-        created_at: {
-          [Op.gte]: today,
-        },
+        is_processed: false,
       },
-      attributes: ["url", "html", "city_id"],
+      attributes: ["url", "html", "city_id", "external_id"],
       limit: pageSize,
       offset: page * pageSize,
     });
@@ -255,18 +279,36 @@ export const scrapAndInsertData = async (batchSize: number) => {
     }
 
     const dataToInsert = await getAllPromisesResults(
-      rawData.map(({ url, html, city_id }) =>
-        scrapeHtmlPage(url, html, city_id)
+      rawData.map(({ url, html, city_id, external_id }) =>
+        scrapeHtmlPage(url, html, city_id, external_id)
       )
     );
 
+    const transaction = await sequelize.transaction();
     try {
-      await Property.bulkCreate(dataToInsert as any, {
+      const insertedUrls = await Property.bulkCreate(dataToInsert as any, {
         ignoreDuplicates: true,
-        returning: false,
+        returning: ["url"],
+        logging: false,
+        transaction,
       });
+
+      await RawProperty.update(
+        { is_processed: true },
+        {
+          where: {
+            url: {
+              [Op.in]: insertedUrls.map((d) => d?.url),
+            },
+          },
+          logging: false,
+          transaction,
+        }
+      );
+      await transaction.commit();
     } catch (err) {
       logger.error("scrapAndInsertData::Error inserting data: ", err);
+      await transaction.rollback();
     }
     ++page;
   }
