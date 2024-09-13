@@ -1,3 +1,4 @@
+import axios from "axios";
 import { Op } from "sequelize";
 import { logger as mainLogger } from "../config";
 import { Property, RawProperty, UrlModel } from "../types/model";
@@ -182,4 +183,31 @@ export const getTodayInsertedData = async () => {
     Property.count({ where }),
   ]);
   return { urlsCount, rawPropertiesCount, propertiesCount };
+};
+
+export const sendMessageToSlack = async (errorMessage: string = "") => {
+  const { SLACK_WEBHOOK_URL } = process.env;
+  if (!SLACK_WEBHOOK_URL) {
+    logger.error("SLACK_WEBHOOK_URL is not defined");
+    return;
+  }
+  const { urlsCount, rawPropertiesCount, propertiesCount } =
+    await getTodayInsertedData();
+  const payload = {
+    text:
+      `<!channel> :mega: *Scrapper Completed*\n\n` +
+      `*Today's data stats are as follows:*\n` +
+      `*Urls inserted :* ${urlsCount}\n` +
+      `*Raw Properties inserted:* ${rawPropertiesCount}\n` +
+      `*Properties inserted:* ${propertiesCount}\n` +
+      `${errorMessage ? errorMessage : ""}`,
+  };
+  return axios
+    .post(SLACK_WEBHOOK_URL, payload)
+    .then((response) => {
+      logger.info("Message sent to Slack:", response.data);
+    })
+    .catch((error) => {
+      logger.error("Error sending message to Slack:", error);
+    });
 };

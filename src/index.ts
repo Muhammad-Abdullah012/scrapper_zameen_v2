@@ -1,10 +1,10 @@
 require("dotenv").config();
-import { Op } from "sequelize";
+import { AggregateError, Op } from "sequelize";
 import { City, UrlModel } from "./types/model";
 import {
   getAllPromisesResults,
-  getTodayInsertedData,
   getUrl,
+  sendMessageToSlack,
 } from "./utils/utils";
 import { logger as mainLogger } from "./config";
 import {
@@ -13,7 +13,6 @@ import {
   scrapAndInsertData,
 } from "./scrap_helper";
 import { lastAdded } from "./queries";
-import axios from "axios";
 
 const logger = mainLogger.child({ file: "index" });
 
@@ -89,31 +88,18 @@ const BATCH_SIZE = 20;
     logger.info("Data added to Properties table successfully");
   } catch (err) {
     logger.error(err);
+    let errorMessage = "";
+    if (err instanceof AggregateError) {
+      errorMessage = err.errors.map((e) => e.message).join(", ");
+    } else if (err instanceof Error) {
+      errorMessage = err.message;
+    } else {
+      errorMessage = JSON.stringify(err);
+    }
+    await sendMessageToSlack(errorMessage);
   } finally {
     console.timeEnd("Start scraping and inserting data");
-    const { SLACK_WEBHOOK_URL } = process.env;
-    if (!SLACK_WEBHOOK_URL) {
-      logger.error("SLACK_WEBHOOK_URL is not defined");
-      return;
-    }
-    const { urlsCount, rawPropertiesCount, propertiesCount } =
-      await getTodayInsertedData();
-    const payload = {
-      text:
-        `<!channel> :mega: *Scrapper Completed*\n\n` +
-        `*Today's data stats are as follows:*\n` +
-        `*Urls inserted :* ${urlsCount}\n` +
-        `*Raw Properties inserted:* ${rawPropertiesCount}\n` +
-        `*Properties inserted:* ${propertiesCount}\n`,
-    };
-    axios
-      .post(SLACK_WEBHOOK_URL, payload)
-      .then((response) => {
-        logger.info("Message sent to Slack:", response.data);
-      })
-      .catch((error) => {
-        logger.error("Error sending message to Slack:", error);
-      });
+    await sendMessageToSlack();
   }
 })().catch((err) => {
   logger.fatal(`Unhandled error: ${err.message}`, { error: err });
