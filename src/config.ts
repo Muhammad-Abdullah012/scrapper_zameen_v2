@@ -1,5 +1,5 @@
 require("dotenv").config();
-import Bottleneck from "bottleneck";
+
 import { Pool } from "pg";
 import { pino } from "pino";
 import { unlink } from "fs";
@@ -20,9 +20,4 @@ export const pool = new Pool({
   port: process.env.POSTGRES_PORT
     ? Number(process.env.POSTGRES_PORT)
     : undefined,
-});
-
-export const limiter = new Bottleneck({
-  maxConcurrent: 50,
-  minTime: 10,
 });

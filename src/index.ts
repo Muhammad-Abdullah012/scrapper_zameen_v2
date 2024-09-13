@@ -1,6 +1,11 @@
-import { Op } from "sequelize";
+require("dotenv").config();
+import { AggregateError, Op } from "sequelize";
 import { City, UrlModel } from "./types/model";
-import { getAllPromisesResults, getUrl } from "./utils/utils";
+import {
+  getAllPromisesResults,
+  getUrl,
+  sendMessageToSlack,
+} from "./utils/utils";
 import { logger as mainLogger } from "./config";
 import {
   getFilteredPages,
@@ -83,8 +88,18 @@ const BATCH_SIZE = 20;
     logger.info("Data added to Properties table successfully");
   } catch (err) {
     logger.error(err);
+    let errorMessage = "";
+    if (err instanceof AggregateError) {
+      errorMessage = err.errors.map((e) => e.message).join(", ");
+    } else if (err instanceof Error) {
+      errorMessage = err.message;
+    } else {
+      errorMessage = JSON.stringify(err);
+    }
+    await sendMessageToSlack(errorMessage);
   } finally {
     console.timeEnd("Start scraping and inserting data");
+    await sendMessageToSlack();
   }
 })().catch((err) => {
   logger.fatal(`Unhandled error: ${err.message}`, { error: err });
