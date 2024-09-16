@@ -224,35 +224,30 @@ export const processInBatches = async () => {
     );
 
     logger.info(`dataToInsert length => ${dataToInsert.length}`);
-
-    const transaction = await sequelize.transaction();
     try {
-      const insertedUrls = await RawProperty.bulkCreate(
-        dataToInsert as IRawProperty[],
-        {
+      await sequelize.transaction((transaction) =>
+        RawProperty.bulkCreate(dataToInsert as IRawProperty[], {
           ignoreDuplicates: true,
           returning: ["url"],
           logging: false,
           transaction,
-        }
+        }).then((insertedUrls) =>
+          UrlModel.update(
+            { is_processed: true },
+            {
+              where: {
+                url: {
+                  [Op.in]: insertedUrls.map((d) => d?.url),
+                },
+              },
+              logging: false,
+              transaction,
+            }
+          )
+        )
       );
-
-      await UrlModel.update(
-        { is_processed: true },
-        {
-          where: {
-            url: {
-              [Op.in]: insertedUrls.map((d) => d?.url),
-            },
-          },
-          logging: false,
-          transaction,
-        }
-      );
-      await transaction.commit();
     } catch (err) {
       logger.error(`Error inserting batch in RawProperty : ${err}`);
-      await transaction.rollback();
     }
     ++page;
   }
@@ -281,32 +276,30 @@ export const scrapAndInsertData = async (batchSize: number) => {
         scrapeHtmlPage(url, html, city_id, external_id)
       )
     );
-
-    const transaction = await sequelize.transaction();
     try {
-      const insertedUrls = await Property.bulkCreate(dataToInsert as any, {
-        ignoreDuplicates: true,
-        returning: ["url"],
-        logging: false,
-        transaction,
-      });
-
-      await RawProperty.update(
-        { is_processed: true },
-        {
-          where: {
-            url: {
-              [Op.in]: insertedUrls.map((d) => d?.url),
-            },
-          },
+      await sequelize.transaction((transaction) =>
+        Property.bulkCreate(dataToInsert as any, {
+          ignoreDuplicates: true,
+          returning: ["url"],
           logging: false,
           transaction,
-        }
+        }).then((insertedUrls) =>
+          RawProperty.update(
+            { is_processed: true },
+            {
+              where: {
+                url: {
+                  [Op.in]: insertedUrls.map((d) => d?.url),
+                },
+              },
+              logging: false,
+              transaction,
+            }
+          )
+        )
       );
-      await transaction.commit();
     } catch (err) {
       logger.error("scrapAndInsertData::Error inserting data: ", err);
-      await transaction.rollback();
     }
     ++page;
   }
