@@ -6,7 +6,7 @@ import {
   getUrl,
   sendMessageToSlack,
 } from "./utils/utils";
-import { logger as mainLogger } from "./config";
+import { logger as mainLogger, pool } from "./config";
 import {
   getFilteredPages,
   processInBatches,
@@ -42,47 +42,41 @@ const BATCH_SIZE = 20;
         attributes: ["id", "name"],
       });
 
-      const citiesMap = cityModels.reduce((acc, city) => {
+      const citiesMap = {} as Record<string, number>;
+      const citiesLastAddedMap = {} as Record<number, Promise<any>>;
+
+      cityModels.forEach((city) => {
         const cityKey = CITIES.find((c) => c.startsWith(city.name));
-        if (cityKey) {
-          acc[cityKey] = city.id;
-        }
-        return acc;
-      }, {} as Record<string, number>);
+        citiesLastAddedMap[city.id] = lastAdded(city.id);
+        if (cityKey) citiesMap[cityKey] = city.id;
+      });
 
-      const citiesLastAddedMap = cityModels.reduce((acc, city) => {
-        acc[city.id] = lastAdded(city.id);
-        return acc;
-      }, {} as Record<number, Promise<any>>);
-
-      {
-        const pages = CITIES.map((city) =>
-          PROPERTY_TYPES.map((propertyType) =>
-            PROPERTY_PURPOSE.map((purpose) =>
-              getUrl(propertyType, city, purpose, citiesMap[city])
-            )
+      const pages = CITIES.map((city) =>
+        PROPERTY_TYPES.map((propertyType) =>
+          PROPERTY_PURPOSE.map((purpose) =>
+            getUrl(propertyType, city, purpose, citiesMap[city])
           )
-        ).flat(2);
-        logger.info(`Pages :: ${pages.length}`);
-        const filteredPages = await getAllPromisesResults(
-          pages.map((p) => getFilteredPages(p, citiesLastAddedMap))
-        );
+        )
+      ).flat(2);
+      logger.info(`Pages :: ${pages.length}`);
+      const filteredPages = await getAllPromisesResults(
+        pages.map((p) => getFilteredPages(p, citiesLastAddedMap))
+      );
 
-        await UrlModel.bulkCreate(
-          filteredPages
-            .flat(1)
-            .map((p) => ({ ...p, city_id: p.cityId })) as any,
-          {
-            ignoreDuplicates: true,
-            returning: false,
-            logging: false,
-          }
-        );
-      }
-      await processInBatches();
-
-      logger.info(`Scraping completed successfully`);
+      await UrlModel.bulkCreate(
+        filteredPages.flat(1).map((p) => ({ ...p, city_id: p.cityId })) as any,
+        {
+          ignoreDuplicates: true,
+          returning: false,
+          logging: false,
+        }
+      );
+      logger.info("Urls inserted successfully");
     }
+
+    await processInBatches();
+    logger.info(`Scraping completed successfully`);
+
     logger.info("Adding data to Properties table");
     await scrapAndInsertData(BATCH_SIZE);
     logger.info("Data added to Properties table successfully");
@@ -100,6 +94,11 @@ const BATCH_SIZE = 20;
   } finally {
     console.timeEnd("Start scraping and inserting data");
     await sendMessageToSlack();
+    await Promise.all([
+      pool.query("REFRESH MATERIALIZED VIEW rankedpropertiesforsale;"),
+      pool.query("REFRESH MATERIALIZED VIEW rankedpropertiesforrent;"),
+      pool.query("REFRESH MATERIALIZED VIEW countpropertiesview;"),
+    ]);
   }
 })().catch((err) => {
   logger.fatal(`Unhandled error: ${err.message}`, { error: err });
