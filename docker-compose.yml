@@ -21,7 +21,6 @@ services:
     image: scrapper_zameen_image
     build:
       context: .
-    restart: always
     deploy:
       resources:
         limits:

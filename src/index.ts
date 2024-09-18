@@ -44,9 +44,8 @@ const BATCH_SIZE = 20;
 
       const citiesMap = cityModels.reduce((acc, city) => {
         const cityKey = CITIES.find((c) => c.startsWith(city.name));
-        if (cityKey) {
-          acc[cityKey] = city.id;
-        }
+        if (cityKey) acc[cityKey] = city.id;
+
         return acc;
       }, {} as Record<string, number>);
 

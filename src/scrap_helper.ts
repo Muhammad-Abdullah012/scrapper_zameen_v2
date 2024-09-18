@@ -205,102 +205,103 @@ export const getFilteredPages = async (
 
 export const processInBatches = async () => {
   const batchSize = 50;
-  let page = 0;
 
-  while (true) {
-    const batch = await UrlModel.findAll({
-      where: { is_processed: false },
-      attributes: ["url", "city_id"],
-      limit: batchSize,
-      offset: page * batchSize,
-    });
+  const batch = await UrlModel.findAll({
+    where: { is_processed: false },
+    attributes: ["url", "city_id"],
+  });
 
-    if (batch.length === 0) break;
-
-    const dataToInsert = await getAllPromisesResults(
-      batch.map((page: any) =>
-        getHtmlPage({ url: page.url, cityId: page.city_id })
-      )
-    );
-
-    logger.info(`dataToInsert length => ${dataToInsert.length}`);
+  for (let i = 0; i < batch.length; i += batchSize) {
     try {
-      await sequelize.transaction((transaction) =>
-        RawProperty.bulkCreate(dataToInsert as IRawProperty[], {
-          ignoreDuplicates: true,
-          returning: ["url"],
-          logging: false,
-          transaction,
-        }).then((insertedUrls) =>
-          UrlModel.update(
-            { is_processed: true },
-            {
-              where: {
-                url: {
-                  [Op.in]: insertedUrls.map((d) => d?.url),
-                },
-              },
-              logging: false,
-              transaction,
-            }
+      const batchToProcess = batch.slice(i, i + batchSize);
+      await sequelize.transaction(async (transaction) => {
+        const dataToInsert = await getAllPromisesResults(
+          batchToProcess.map((page: any) =>
+            getHtmlPage({ url: page.url, cityId: page.city_id })
           )
-        )
-      );
+        );
+
+        logger.info(`dataToInsert length => ${dataToInsert.length}`);
+
+        const insertedUrls = await RawProperty.bulkCreate(
+          dataToInsert as IRawProperty[],
+          {
+            ignoreDuplicates: true,
+            returning: ["url"],
+            logging: false,
+            transaction,
+          }
+        );
+
+        await UrlModel.update(
+          { is_processed: true },
+          {
+            where: {
+              url: {
+                [Op.in]: insertedUrls.map((d) => d?.url),
+              },
+            },
+            logging: false,
+            transaction,
+          }
+        );
+      });
     } catch (err) {
-      logger.error(`Error inserting batch in RawProperty : ${err}`);
+      logger.error(`Error processing batch: ${err}`);
     }
-    ++page;
   }
 };
 
 export const scrapAndInsertData = async (batchSize: number) => {
+  const finishedProcessingMessage = "No more records to process.";
   const pageSize = 50;
-  let page = 0;
 
   while (true) {
-    const rawData = await RawProperty.findAll({
-      where: {
-        is_processed: false,
-      },
-      attributes: ["url", "html", "city_id", "external_id"],
-      limit: pageSize,
-      offset: page * pageSize,
-    });
-
-    if (rawData.length === 0) {
-      break;
-    }
-
-    const dataToInsert = await getAllPromisesResults(
-      rawData.map(({ url, html, city_id, external_id }) =>
-        scrapeHtmlPage(url, html, city_id, external_id)
-      )
-    );
     try {
-      await sequelize.transaction((transaction) =>
-        Property.bulkCreate(dataToInsert as any, {
+      await sequelize.transaction(async (transaction) => {
+        const rawData = await RawProperty.findAll({
+          where: {
+            is_processed: false,
+          },
+          attributes: ["url", "html", "city_id", "external_id"],
+          limit: pageSize,
+          transaction,
+          lock: transaction.LOCK.UPDATE,
+        });
+
+        if (rawData.length === 0) {
+          throw new Error(finishedProcessingMessage);
+        }
+
+        const dataToInsert = await getAllPromisesResults(
+          rawData.map(({ url, html, city_id, external_id }) =>
+            scrapeHtmlPage(url, html, city_id, external_id)
+          )
+        );
+        const insertedUrls = await Property.bulkCreate(dataToInsert as any, {
           ignoreDuplicates: true,
           returning: ["url"],
           logging: false,
           transaction,
-        }).then((insertedUrls) =>
-          RawProperty.update(
-            { is_processed: true },
-            {
-              where: {
-                url: {
-                  [Op.in]: insertedUrls.map((d) => d?.url),
-                },
+        });
+
+        await RawProperty.update(
+          { is_processed: true },
+          {
+            where: {
+              url: {
+                [Op.in]: insertedUrls.map((d) => d?.url),
               },
-              logging: false,
-              transaction,
-            }
-          )
-        )
-      );
+            },
+            logging: false,
+            transaction,
+          }
+        );
+      });
     } catch (err) {
+      if (err instanceof Error && err.message === finishedProcessingMessage)
+        break;
       logger.error("scrapAndInsertData::Error inserting data: ", err);
     }
-    ++page;
   }
 };
