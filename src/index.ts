@@ -42,17 +42,14 @@ const BATCH_SIZE = 20;
         attributes: ["id", "name"],
       });
 
-      const citiesMap = cityModels.reduce((acc, city) => {
+      const citiesMap = {} as Record<string, number>;
+      const citiesLastAddedMap = {} as Record<number, Promise<any>>;
+
+      cityModels.forEach((city) => {
         const cityKey = CITIES.find((c) => c.startsWith(city.name));
-        if (cityKey) acc[cityKey] = city.id;
-
-        return acc;
-      }, {} as Record<string, number>);
-
-      const citiesLastAddedMap = cityModels.reduce((acc, city) => {
-        acc[city.id] = lastAdded(city.id);
-        return acc;
-      }, {} as Record<number, Promise<any>>);
+        citiesLastAddedMap[city.id] = lastAdded(city.id);
+        if (cityKey) citiesMap[cityKey] = city.id;
+      });
 
       {
         const pages = CITIES.map((city) =>
