@@ -6,7 +6,7 @@ import {
   getUrl,
   sendMessageToSlack,
 } from "./utils/utils";
-import { logger as mainLogger } from "./config";
+import { logger as mainLogger, pool } from "./config";
 import {
   getFilteredPages,
   processInBatches,
@@ -94,6 +94,11 @@ const BATCH_SIZE = 20;
   } finally {
     console.timeEnd("Start scraping and inserting data");
     await sendMessageToSlack();
+    await Promise.all([
+      pool.query("REFRESH MATERIALIZED VIEW rankedpropertiesforsale;"),
+      pool.query("REFRESH MATERIALIZED VIEW rankedpropertiesforrent;"),
+      pool.query("REFRESH MATERIALIZED VIEW countpropertiesview;"),
+    ]);
   }
 })().catch((err) => {
   logger.fatal(`Unhandled error: ${err.message}`, { error: err });
