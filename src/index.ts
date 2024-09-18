@@ -51,34 +51,32 @@ const BATCH_SIZE = 20;
         if (cityKey) citiesMap[cityKey] = city.id;
       });
 
-      {
-        const pages = CITIES.map((city) =>
-          PROPERTY_TYPES.map((propertyType) =>
-            PROPERTY_PURPOSE.map((purpose) =>
-              getUrl(propertyType, city, purpose, citiesMap[city])
-            )
+      const pages = CITIES.map((city) =>
+        PROPERTY_TYPES.map((propertyType) =>
+          PROPERTY_PURPOSE.map((purpose) =>
+            getUrl(propertyType, city, purpose, citiesMap[city])
           )
-        ).flat(2);
-        logger.info(`Pages :: ${pages.length}`);
-        const filteredPages = await getAllPromisesResults(
-          pages.map((p) => getFilteredPages(p, citiesLastAddedMap))
-        );
+        )
+      ).flat(2);
+      logger.info(`Pages :: ${pages.length}`);
+      const filteredPages = await getAllPromisesResults(
+        pages.map((p) => getFilteredPages(p, citiesLastAddedMap))
+      );
 
-        await UrlModel.bulkCreate(
-          filteredPages
-            .flat(1)
-            .map((p) => ({ ...p, city_id: p.cityId })) as any,
-          {
-            ignoreDuplicates: true,
-            returning: false,
-            logging: false,
-          }
-        );
-      }
-      await processInBatches();
-
-      logger.info(`Scraping completed successfully`);
+      await UrlModel.bulkCreate(
+        filteredPages.flat(1).map((p) => ({ ...p, city_id: p.cityId })) as any,
+        {
+          ignoreDuplicates: true,
+          returning: false,
+          logging: false,
+        }
+      );
+      logger.info("Urls inserted successfully");
     }
+
+    await processInBatches();
+    logger.info(`Scraping completed successfully`);
+
     logger.info("Adding data to Properties table");
     await scrapAndInsertData(BATCH_SIZE);
     logger.info("Data added to Properties table successfully");
