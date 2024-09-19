@@ -204,19 +204,25 @@ export const getFilteredPages = async (
 };
 
 export const processInBatches = async () => {
+  const finishedProcessingMessage = "No more records to process.";
   const batchSize = 50;
 
-  const batch = await UrlModel.findAll({
-    where: { is_processed: false },
-    attributes: ["url", "city_id"],
-  });
-
-  for (let i = 0; i < batch.length; i += batchSize) {
+  while (true) {
     try {
-      const batchToProcess = batch.slice(i, i + batchSize);
       await sequelize.transaction(async (transaction) => {
+        const batch = await UrlModel.findAll({
+          where: { is_processed: false },
+          attributes: ["url", "city_id"],
+          limit: batchSize,
+          transaction,
+          lock: transaction.LOCK.UPDATE,
+        });
+
+        if (batch.length === 0) {
+          throw new Error(finishedProcessingMessage);
+        }
         const dataToInsert = await getAllPromisesResults(
-          batchToProcess.map((page: any) =>
+          batch.map((page: any) =>
             getHtmlPage({ url: page.url, cityId: page.city_id })
           )
         );
@@ -248,6 +254,9 @@ export const processInBatches = async () => {
       });
     } catch (err) {
       logger.error(`Error processing batch: ${err}`);
+      if (err instanceof Error && err.message === finishedProcessingMessage) {
+        break;
+      }
     }
   }
 };

@@ -101,6 +101,6 @@ const BATCH_SIZE = 20;
     ]);
   }
 })().catch((err) => {
-  logger.fatal(`Unhandled error: ${err.message}`, { error: err });
+  logger.fatal(`Unhandled error: ${err.message}, ${err}`);
   process.exit(1);
 });
