@@ -80,6 +80,7 @@ const BATCH_SIZE = 20;
     logger.info("Adding data to Properties table");
     await scrapAndInsertData(BATCH_SIZE);
     logger.info("Data added to Properties table successfully");
+    await sendMessageToSlack();
   } catch (err) {
     logger.error(err);
     let errorMessage = "";
@@ -93,12 +94,13 @@ const BATCH_SIZE = 20;
     await sendMessageToSlack(errorMessage);
   } finally {
     console.timeEnd("Start scraping and inserting data");
-    await sendMessageToSlack();
+
     await Promise.all([
       pool.query("REFRESH MATERIALIZED VIEW rankedpropertiesforsale;"),
       pool.query("REFRESH MATERIALIZED VIEW rankedpropertiesforrent;"),
       pool.query("REFRESH MATERIALIZED VIEW countpropertiesview;"),
     ]);
+    console.log("Refreshed Materialized Views");
   }
 })().catch((err) => {
   logger.fatal(`Unhandled error: ${err.message}, ${err}`);
