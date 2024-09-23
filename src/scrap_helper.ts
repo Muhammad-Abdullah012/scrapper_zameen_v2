@@ -1,7 +1,7 @@
 require("dotenv").config();
 import * as cheerio from "cheerio";
 import { Op } from "sequelize";
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 
 import { insertAgency, insertIntoLocation } from "./queries";
 import { logger as mainLogger } from "./config";
@@ -104,60 +104,78 @@ const processPage = async (
   cityId: number,
   lastAddedDbPromise: Promise<any>
 ) => {
-  logger.info("onPage ==> " + link);
-  const mainPage = await axios.get(link);
-  const $ = cheerio.load(mainPage.data);
-  const listings = $('li[aria-label="Listing"][role="article"]');
-  let shouldStopLoop = false;
-  const lastDateInDb = await lastAddedDbPromise;
+  try {
+    logger.info("onPage ==> " + link);
+    const mainPage = await axios.get(link);
+    const $ = cheerio.load(mainPage.data);
+    const notfound = $('div[aria-label="No hits box"i]').length > 0;
 
-  const listingLinks = listings
-    .map((_index, element) => {
-      const li = $(element);
+    if (notfound) return { listingLinks: [], shouldStopLoop: true };
 
-      const listingLink = li.find('a[aria-label="Listing link"]').attr("href");
+    const listings = $('li[aria-label="Listing"][role="article"]');
+    let shouldStopLoop = false;
+    const lastDateInDb = await lastAddedDbPromise;
 
-      const creationDateSpan = li.find(
-        'span[aria-label="Listing creation date"]'
-      );
+    const listingLinks = listings
+      .map((_index, element) => {
+        const li = $(element);
 
-      const creationDate = creationDateSpan
-        .text()
-        .trim()
-        .split(":")
-        .pop()
-        ?.trim();
+        const listingLink = li
+          .find('a[aria-label="Listing link"]')
+          .attr("href");
 
-      if (!creationDate) {
-        logger.error(`Creation date not found for ${listingLink}`);
-        return null;
-      }
-
-      const dateStr = relativeTimeToTimestamp(creationDate);
-
-      if (!dateStr) {
-        logger.error(
-          `Could not convert date for ${listingLink}, date was: ${creationDate}`
+        if (!listingLink) {
+          logger.error(`Listing link not found for ${li.text()}`);
+          return null;
+        }
+        const creationDateSpan = li.find(
+          'span[aria-label="Listing creation date"]'
         );
-        return null;
-      }
-      const date = new Date(dateStr);
-      const dbDate = new Date(lastDateInDb);
 
-      if (dbDate >= date) {
-        shouldStopLoop = true;
-      }
-      return dbDate < date
-        ? {
-            url: `${process.env.BASE_URL}${listingLink ?? ""}`,
-            cityId,
-          }
-        : null;
-    })
-    .get()
-    .filter((v) => v != null);
-  logger.info(`filtered listing links ==> ${listingLinks.length}`);
-  return { listingLinks, shouldStopLoop };
+        const creationDate = creationDateSpan
+          .text()
+          .trim()
+          .split(":")
+          .pop()
+          ?.trim();
+
+        if (!creationDate) {
+          logger.error(`Creation date not found for ${listingLink}`);
+          return null;
+        }
+
+        const dateStr = relativeTimeToTimestamp(creationDate);
+
+        if (!dateStr) {
+          logger.error(
+            `Could not convert date for ${listingLink}, date was: ${creationDate}`
+          );
+          return null;
+        }
+        const date = new Date(dateStr);
+        const dbDate = new Date(lastDateInDb);
+
+        if (dbDate >= date) {
+          shouldStopLoop = true;
+        }
+        return dbDate < date
+          ? {
+              url: `${process.env.BASE_URL}${listingLink ?? ""}`,
+              cityId,
+            }
+          : null;
+      })
+      .get()
+      .filter((v) => v != null);
+    logger.info(`filtered listing links ==> ${listingLinks.length}`);
+    return { listingLinks, shouldStopLoop };
+  } catch (err) {
+    if (err instanceof AxiosError && err.response?.status === 404) {
+      return { listingLinks: [], shouldStopLoop: true };
+    }
+    logger.error(err);
+    return { listingLinks: [], shouldStopLoop: false };
+  }
 };
 
 export const getHtmlPage = async (page: IPagesData) => {
@@ -187,8 +205,8 @@ export const getFilteredPages = async (
   page: IPagesData,
   cityLastAddedMap: Record<number, Promise<any>>
 ) => {
-  const newPages: IPagesData[] = [];
-  for (let i = 1; i <= 50; ++i) {
+  let i = 1;
+  while (true) {
     logger.info(`fetchDataForIndex at index :: ${i}, ${page.cityId}`);
     const url = page.url.replace("*", i.toString());
     const { listingLinks, shouldStopLoop } = await processPage(
@@ -196,11 +214,20 @@ export const getFilteredPages = async (
       page.cityId,
       cityLastAddedMap[page.cityId]
     );
-    newPages.push(...listingLinks);
-    if (shouldStopLoop) break;
-  }
 
-  return newPages.reverse();
+    logger.info("Running url bulk create query");
+    await UrlModel.bulkCreate(
+      listingLinks.map((p) => ({ ...p, city_id: p.cityId })) as any,
+      {
+        ignoreDuplicates: true,
+        returning: false,
+        logging: false,
+      }
+    );
+
+    if (shouldStopLoop) break;
+    ++i;
+  }
 };
 
 export const processInBatches = async () => {
@@ -229,6 +256,7 @@ export const processInBatches = async () => {
 
         logger.info(`dataToInsert length => ${dataToInsert.length}`);
 
+        logger.info("Running raw_properties bulk create query");
         const insertedUrls = await RawProperty.bulkCreate(
           dataToInsert as IRawProperty[],
           {
@@ -239,6 +267,7 @@ export const processInBatches = async () => {
           }
         );
 
+        logger.info("Running url update query");
         await UrlModel.update(
           { is_processed: true },
           {
@@ -287,6 +316,7 @@ export const scrapAndInsertData = async (batchSize: number) => {
             scrapeHtmlPage(url, html, city_id, external_id)
           )
         );
+        logger.info("Running property bulk create query");
         const insertedUrls = await Property.bulkCreate(dataToInsert as any, {
           ignoreDuplicates: true,
           returning: ["url"],
@@ -294,6 +324,7 @@ export const scrapAndInsertData = async (batchSize: number) => {
           transaction,
         });
 
+        logger.info("Running raw_properties update query");
         await RawProperty.update(
           { is_processed: true },
           {
