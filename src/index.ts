@@ -59,18 +59,10 @@ const BATCH_SIZE = 20;
         )
       ).flat(2);
       logger.info(`Pages :: ${pages.length}`);
-      const filteredPages = await getAllPromisesResults(
+      await getAllPromisesResults(
         pages.map((p) => getFilteredPages(p, citiesLastAddedMap))
       );
 
-      await UrlModel.bulkCreate(
-        filteredPages.flat(1).map((p) => ({ ...p, city_id: p.cityId })) as any,
-        {
-          ignoreDuplicates: true,
-          returning: false,
-          logging: false,
-        }
-      );
       logger.info("Urls inserted successfully");
     }
 

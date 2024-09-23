@@ -205,7 +205,6 @@ export const getFilteredPages = async (
   page: IPagesData,
   cityLastAddedMap: Record<number, Promise<any>>
 ) => {
-  const newPages: IPagesData[] = [];
   let i = 1;
   while (true) {
     logger.info(`fetchDataForIndex at index :: ${i}, ${page.cityId}`);
@@ -215,12 +214,20 @@ export const getFilteredPages = async (
       page.cityId,
       cityLastAddedMap[page.cityId]
     );
-    newPages.push(...listingLinks);
+
+    logger.info("Running url bulk create query");
+    await UrlModel.bulkCreate(
+      listingLinks.map((p) => ({ ...p, city_id: p.cityId })) as any,
+      {
+        ignoreDuplicates: true,
+        returning: false,
+        logging: false,
+      }
+    );
+
     if (shouldStopLoop) break;
     ++i;
   }
-
-  return newPages.reverse();
 };
 
 export const processInBatches = async () => {
@@ -249,6 +256,7 @@ export const processInBatches = async () => {
 
         logger.info(`dataToInsert length => ${dataToInsert.length}`);
 
+        logger.info("Running raw_properties bulk create query");
         const insertedUrls = await RawProperty.bulkCreate(
           dataToInsert as IRawProperty[],
           {
@@ -259,6 +267,7 @@ export const processInBatches = async () => {
           }
         );
 
+        logger.info("Running url update query");
         await UrlModel.update(
           { is_processed: true },
           {
@@ -307,6 +316,7 @@ export const scrapAndInsertData = async (batchSize: number) => {
             scrapeHtmlPage(url, html, city_id, external_id)
           )
         );
+        logger.info("Running property bulk create query");
         const insertedUrls = await Property.bulkCreate(dataToInsert as any, {
           ignoreDuplicates: true,
           returning: ["url"],
@@ -314,6 +324,7 @@ export const scrapAndInsertData = async (batchSize: number) => {
           transaction,
         });
 
+        logger.info("Running raw_properties update query");
         await RawProperty.update(
           { is_processed: true },
           {
