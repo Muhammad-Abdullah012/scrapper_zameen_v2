@@ -256,6 +256,9 @@ export const processInBatches = async () => {
 
         logger.info(`dataToInsert length => ${dataToInsert.length}`);
 
+        if (dataToInsert.length === 0)
+          throw new Error(finishedProcessingMessage);
+
         logger.info("Running raw_properties bulk create query");
         const insertedUrls = await RawProperty.bulkCreate(
           dataToInsert as IRawProperty[],
@@ -316,6 +319,12 @@ export const scrapAndInsertData = async (batchSize: number) => {
             scrapeHtmlPage(url, html, city_id, external_id)
           )
         );
+
+        logger.info(`dataToInsert length => ${dataToInsert.length}`);
+
+        if (dataToInsert.length === 0)
+          throw new Error(finishedProcessingMessage);
+
         logger.info("Running property bulk create query");
         const insertedUrls = await Property.bulkCreate(dataToInsert as any, {
           ignoreDuplicates: true,
