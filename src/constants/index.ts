@@ -12,3 +12,9 @@ export const REVERSE_CITIES_MAP = {
   Lahore: "Lahore-1",
   Rawalpindi: "Rawalpindi-41",
 };
+export const mapping: { [key: string]: number } = {
+  Crore: 7,
+  Lakh: 5,
+  Arab: 9,
+  Thousand: 3,
+};

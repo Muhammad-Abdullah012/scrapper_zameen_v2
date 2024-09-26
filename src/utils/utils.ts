@@ -1,16 +1,11 @@
 import axios from "axios";
 import { Op } from "sequelize";
+import { mapping } from "../constants";
 import { logger as mainLogger } from "../config";
 import { Property, RawProperty, UrlModel } from "../types/model";
 require("dotenv").config();
 
 const logger = mainLogger.child({ file: "utils" });
-const mapping: { [key: string]: number } = {
-  Crore: 7,
-  Lakh: 5,
-  Arab: 9,
-  Thousand: 3,
-};
 
 export const formatPrice = (price: string) => {
   const parts = price.split(" ");
