@@ -46,7 +46,7 @@ const logger = mainLogger.child({ file: "index" });
       });
 
       const citiesMap = {} as Record<string, number>;
-      const citiesLastAddedMap = {} as Record<number, Promise<any>>;
+      const citiesLastAddedMap = {} as Record<number, Promise<Date | null>>;
 
       cityModels.forEach(({ id, name }) => {
         const cityKey =

@@ -108,7 +108,7 @@ export const scrapeHtmlPage = async (
 const processPage = async (
   link: string,
   cityId: number,
-  lastAddedDbPromise: Promise<any>
+  lastAddedDbPromise: Promise<Date | null>
 ) => {
   try {
     logger.info("onPage ==> " + link);
@@ -159,7 +159,7 @@ const processPage = async (
           return null;
         }
         const date = new Date(dateStr);
-        const dbDate = new Date(lastDateInDb);
+        const dbDate = new Date(lastDateInDb ?? 0);
 
         if (dbDate >= date) {
           shouldStopLoop = true;
@@ -209,7 +209,7 @@ export const getHtmlPage = async (page: IPagesData) => {
 
 export const getFilteredPages = async (
   page: IPagesData,
-  cityLastAddedMap: Record<number, Promise<any>>
+  cityLastAddedMap: Record<number, Promise<Date | null>>
 ) => {
   let i = 1;
   while (true) {

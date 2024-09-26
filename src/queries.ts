@@ -1,9 +1,11 @@
 require("dotenv").config();
+import { Op } from "sequelize";
 import { pool } from "./config";
 import { IinsertIntoAgencyProps, IProperty_V2_Data } from "./types";
 import { logger as mainLogger } from "./config";
 import { PoolClient } from "pg";
 import { getExternalId } from "./utils/utils";
+import { Property } from "./types/model";
 
 const logger = mainLogger.child({ file: "queries" });
 const PROPERTIES_TABLE_NAME = "properties";
@@ -93,16 +95,20 @@ export const alreadyExists = async (externalId: number | null) => {
 
 export const lastAdded = async (cityId: number) => {
   try {
-    const result = await pool.query(
-      `SELECT added FROM ${PROPERTIES_TABLE_NAME} WHERE city_id = $1 AND added IS NOT NULL ORDER BY added DESC LIMIT 1;`,
-      [cityId]
-    );
-    return result.rowCount != null && result.rowCount > 0
-      ? result.rows[0].added
-      : 0;
+    const result = await Property.findOne({
+      where: {
+        city_id: cityId,
+        added: {
+          [Op.ne]: null as unknown as Date,
+        },
+      },
+      attributes: ["added"],
+      order: [["added", "DESC"]],
+    });
+    return result?.added ?? null;
   } catch (error) {
     logger.error(`error getting last added: ${error}`);
-    return 0;
+    return null;
   }
 };
 
