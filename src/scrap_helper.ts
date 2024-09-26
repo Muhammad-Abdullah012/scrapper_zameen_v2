@@ -1,11 +1,17 @@
 require("dotenv").config();
 import * as cheerio from "cheerio";
-import { Op } from "sequelize";
+import { InferAttributes, Op } from "sequelize";
 import axios, { AxiosError } from "axios";
 
 import { insertAgency, insertIntoLocation } from "./queries";
 import { logger as mainLogger } from "./config";
-import { IRawProperty, Property, RawProperty, UrlModel } from "./types/model";
+import {
+  IPropertiesModel,
+  IRawProperty,
+  Property,
+  RawProperty,
+  UrlModel,
+} from "./types/model";
 import {
   formatKeyValue,
   getAllPromisesResults,
@@ -217,7 +223,9 @@ export const getFilteredPages = async (
 
     logger.info("Running url bulk create query");
     await UrlModel.bulkCreate(
-      listingLinks.map((p) => ({ ...p, city_id: p.cityId })) as any,
+      listingLinks.map((p) => ({ ...p, city_id: p.cityId })) as Array<
+        InferAttributes<UrlModel>
+      >,
       {
         ignoreDuplicates: true,
         returning: false,
@@ -249,7 +257,7 @@ export const processInBatches = async () => {
           throw new Error(finishedProcessingMessage);
         }
         const dataToInsert = await getAllPromisesResults(
-          batch.map((page: any) =>
+          batch.map((page) =>
             getHtmlPage({ url: page.url, cityId: page.city_id })
           )
         );
@@ -326,12 +334,15 @@ export const scrapAndInsertData = async () => {
           throw new Error(finishedProcessingMessage);
 
         logger.info("Running property bulk create query");
-        const insertedUrls = await Property.bulkCreate(dataToInsert as any, {
-          ignoreDuplicates: true,
-          returning: ["url"],
-          logging: false,
-          transaction,
-        });
+        const insertedUrls = await Property.bulkCreate(
+          dataToInsert as Array<InferAttributes<IPropertiesModel>>,
+          {
+            ignoreDuplicates: true,
+            returning: ["url"],
+            logging: false,
+            transaction,
+          }
+        );
 
         logger.info("Running raw_properties update query");
         await RawProperty.update(
