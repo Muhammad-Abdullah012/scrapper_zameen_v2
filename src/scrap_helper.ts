@@ -293,7 +293,7 @@ export const processInBatches = async () => {
   }
 };
 
-export const scrapAndInsertData = async (batchSize: number) => {
+export const scrapAndInsertData = async () => {
   const finishedProcessingMessage = "No more records to process.";
   const pageSize = 50;
 
