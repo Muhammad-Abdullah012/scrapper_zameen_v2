@@ -25,7 +25,12 @@ const logger = mainLogger.child({ file: "index" });
 (async () => {
   try {
     console.time("Start scraping and inserting data");
-    {
+
+    const stepsToRun = process.env.STEPS_TO_RUN
+      ? process.env.STEPS_TO_RUN.split(",").map(Number)
+      : [1, 2, 3];
+
+    if (stepsToRun.includes(1)) {
       const citiesMapArray = Object.values(CITIES_MAP);
       await City.bulkCreate(
         citiesMapArray.map((name) => ({
@@ -72,12 +77,18 @@ const logger = mainLogger.child({ file: "index" });
       logger.info("Urls inserted successfully");
     }
 
-    await processInBatches();
-    logger.info(`Scraping completed successfully`);
+    if (stepsToRun.includes(2)) {
+      logger.info("Adding data to raw_properties table");
+      await processInBatches();
+      logger.info(`Scraping completed successfully`);
+    }
 
-    logger.info("Adding data to Properties table");
-    await scrapAndInsertData();
-    logger.info("Data added to Properties table successfully");
+    if (stepsToRun.includes(3)) {
+      logger.info("Adding data to Properties table");
+      await scrapAndInsertData();
+      logger.info("Data added to Properties table successfully");
+    }
+
     await sendMessageToSlack();
   } catch (err) {
     logger.error(err);
