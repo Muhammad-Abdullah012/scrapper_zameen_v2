@@ -5,7 +5,8 @@ import { IinsertIntoAgencyProps, IProperty_V2_Data } from "./types";
 import { logger as mainLogger } from "./config";
 import { PoolClient } from "pg";
 import { getExternalId } from "./utils/utils";
-import { Property } from "./types/model";
+import { AgencyModel, Location, Property } from "./types/model";
+import { sequelize } from "./config/sequelize";
 
 const logger = mainLogger.child({ file: "queries" });
 const PROPERTIES_TABLE_NAME = "properties";
@@ -49,38 +50,20 @@ export const insertIntoCity = async (city: string) => {
 };
 
 export const insertIntoLocation = async (location: string) => {
-  const client = await pool.connect();
   try {
-    await client.query("BEGIN");
+    return sequelize.transaction(async (transaction) => {
+      const [insertResult] = await Location.findOrCreate({
+        where: { name: location },
+        defaults: { name: location },
+        transaction,
+        returning: ["id"],
+      });
 
-    const insertResult = await client.query(
-      `INSERT INTO ${LOCATIONS_TABLE_NAME} (name)
-       VALUES ($1)
-       ON CONFLICT (name) DO NOTHING
-       RETURNING id;`,
-      [location]
-    );
-
-    let locationId;
-    if (insertResult.rows.length > 0) {
-      locationId = insertResult.rows[0].id;
-    } else {
-      const selectResult = await client.query(
-        `SELECT id FROM ${LOCATIONS_TABLE_NAME} WHERE name = $1;`,
-        [location]
-      );
-      locationId = selectResult.rows[0]?.id;
-    }
-
-    await client.query("COMMIT");
-
-    return locationId;
+      return insertResult.id;
+    });
   } catch (error) {
-    await client.query("ROLLBACK");
-    logger.error(`error inserting into ${LOCATIONS_TABLE_NAME}: ${error}`);
+    logger.error(`error inserting into Location: ${error}`);
     return null;
-  } finally {
-    client.release();
   }
 };
 
@@ -118,32 +101,21 @@ export const insertAgency = async ({
 }: IinsertIntoAgencyProps) => {
   if (!agencyName || !profileUrl) return null;
   const agencyProfileUrl = `${process.env.BASE_URL}${profileUrl}`;
-  const client = await pool.connect();
 
   try {
-    await client.query("BEGIN");
+    return sequelize.transaction(async (transaction) => {
+      const [insertResult] = await AgencyModel.findOrCreate({
+        where: { profile_url: agencyProfileUrl },
+        defaults: { title: agencyName, profile_url: agencyProfileUrl },
+        transaction,
+        returning: ["id"],
+      });
 
-    const { rows } = await client.query(
-      `INSERT INTO ${AGENCY_TABLE_NAME} (title, profile_url)
-       VALUES ($1, $2)
-       ON CONFLICT (profile_url) DO NOTHING
-       RETURNING id;`,
-      [agencyName, agencyProfileUrl]
-    );
-
-    const agencyId =
-      rows.length > 0
-        ? rows[0].id
-        : await getAgencyId(client, agencyProfileUrl);
-
-    await client.query("COMMIT");
-    return agencyId;
+      return insertResult.id;
+    });
   } catch (error) {
-    await client.query("ROLLBACK");
-    logger.error(`Error inserting into ${AGENCY_TABLE_NAME}: ${error}`);
+    logger.error(`Error inserting into AgencyModel: ${error}`);
     return null;
-  } finally {
-    client.release();
   }
 };
 

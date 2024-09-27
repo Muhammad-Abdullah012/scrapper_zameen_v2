@@ -430,7 +430,16 @@ Location.hasMany(RankedPropertyForRentView, { foreignKey: "location_id" });
 RankedPropertyForRentView.belongsTo(City, { foreignKey: "city_id" });
 City.hasMany(RankedPropertyForRentView, { foreignKey: "city_id" });
 
-export class AgencyModel extends Model {}
+export class AgencyModel extends Model<
+  InferAttributes<AgencyModel>,
+  InferCreationAttributes<AgencyModel>
+> {
+  declare id?: number;
+  declare title: string;
+  declare profile_url: string;
+  declare created_at?: Date;
+  declare updated_at?: Date;
+}
 AgencyModel.init(
   {
     id: {
