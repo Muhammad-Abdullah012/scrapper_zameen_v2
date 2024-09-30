@@ -344,8 +344,8 @@ export interface LocationModel
   > {
   id: CreationOptional<number>;
   name: string;
-  created_at: Date;
-  updated_at: Date;
+  created_at?: Date;
+  updated_at?: Date;
 }
 
 export const Location = sequelize.define<LocationModel>(
@@ -430,7 +430,16 @@ Location.hasMany(RankedPropertyForRentView, { foreignKey: "location_id" });
 RankedPropertyForRentView.belongsTo(City, { foreignKey: "city_id" });
 City.hasMany(RankedPropertyForRentView, { foreignKey: "city_id" });
 
-export class AgencyModel extends Model {}
+export class AgencyModel extends Model<
+  InferAttributes<AgencyModel>,
+  InferCreationAttributes<AgencyModel>
+> {
+  declare id?: number;
+  declare title: string;
+  declare profile_url: string;
+  declare created_at?: Date;
+  declare updated_at?: Date;
+}
 AgencyModel.init(
   {
     id: {
@@ -492,7 +501,17 @@ CountPropertiesView.init(
   }
 );
 
-export class UrlModel extends Model {}
+export class UrlModel extends Model<
+  InferAttributes<UrlModel>,
+  InferCreationAttributes<UrlModel>
+> {
+  declare id?: number;
+  declare url: string;
+  declare city_id: number;
+  declare is_processed?: boolean;
+  declare created_at?: Date;
+  declare updated_at?: Date;
+}
 
 UrlModel.init(
   {

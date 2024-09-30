@@ -1,6 +1,6 @@
 require("dotenv").config();
-import { AggregateError, Op } from "sequelize";
-import { City, UrlModel } from "./types/model";
+import { AggregateError, InferCreationAttributes, Op } from "sequelize";
+import { City, CityModel } from "./types/model";
 import {
   getAllPromisesResults,
   getUrl,
@@ -13,21 +13,29 @@ import {
   scrapAndInsertData,
 } from "./scrap_helper";
 import { lastAdded } from "./queries";
+import {
+  CITIES_MAP,
+  PROPERTY_PURPOSE,
+  PROPERTY_TYPES,
+  REVERSE_CITIES_MAP,
+} from "./constants";
 
 const logger = mainLogger.child({ file: "index" });
-
-const PROPERTY_TYPES = ["Homes", "Plots", "Commercial"];
-const PROPERTY_PURPOSE = ["Buy", "Rent"];
-const CITIES = ["Islamabad-3", "Karachi-2", "Lahore-1", "Rawalpindi-41"];
-
-const BATCH_SIZE = 20;
 
 (async () => {
   try {
     console.time("Start scraping and inserting data");
-    {
+
+    const stepsToRun = process.env.STEPS_TO_RUN
+      ? process.env.STEPS_TO_RUN.split(",").map(Number)
+      : [1, 2, 3];
+
+    if (stepsToRun.includes(1)) {
+      const citiesMapArray = Object.values(CITIES_MAP);
       await City.bulkCreate(
-        CITIES.map((c) => ({ name: c.split("-")[0] })) as any,
+        citiesMapArray.map((name) => ({
+          name,
+        })) as Array<InferCreationAttributes<CityModel>>,
         {
           ignoreDuplicates: true,
           returning: ["id", "name"],
@@ -36,28 +44,31 @@ const BATCH_SIZE = 20;
       const cityModels = await City.findAll({
         where: {
           name: {
-            [Op.in]: CITIES.map((c) => c.split("-")[0]),
+            [Op.in]: citiesMapArray,
           },
         },
         attributes: ["id", "name"],
       });
 
       const citiesMap = {} as Record<string, number>;
-      const citiesLastAddedMap = {} as Record<number, Promise<any>>;
+      const citiesLastAddedMap = {} as Record<number, Promise<Date | null>>;
 
-      cityModels.forEach((city) => {
-        const cityKey = CITIES.find((c) => c.startsWith(city.name));
-        citiesLastAddedMap[city.id] = lastAdded(city.id);
-        if (cityKey) citiesMap[cityKey] = city.id;
+      cityModels.forEach(({ id, name }) => {
+        const cityKey =
+          REVERSE_CITIES_MAP[name as keyof typeof REVERSE_CITIES_MAP];
+        citiesLastAddedMap[id] = lastAdded(id);
+        if (cityKey) citiesMap[cityKey] = id;
       });
 
-      const pages = CITIES.map((city) =>
-        PROPERTY_TYPES.map((propertyType) =>
-          PROPERTY_PURPOSE.map((purpose) =>
-            getUrl(propertyType, city, purpose, citiesMap[city])
+      const pages = Object.values(REVERSE_CITIES_MAP)
+        .map((city) =>
+          PROPERTY_TYPES.map((propertyType) =>
+            PROPERTY_PURPOSE.map((purpose) =>
+              getUrl(propertyType, city, purpose, citiesMap[city])
+            )
           )
         )
-      ).flat(2);
+        .flat(2);
       logger.info(`Pages :: ${pages.length}`);
       await getAllPromisesResults(
         pages.map((p) => getFilteredPages(p, citiesLastAddedMap))
@@ -66,12 +77,18 @@ const BATCH_SIZE = 20;
       logger.info("Urls inserted successfully");
     }
 
-    await processInBatches();
-    logger.info(`Scraping completed successfully`);
+    if (stepsToRun.includes(2)) {
+      logger.info("Adding data to raw_properties table");
+      await processInBatches();
+      logger.info(`Scraping completed successfully`);
+    }
 
-    logger.info("Adding data to Properties table");
-    await scrapAndInsertData(BATCH_SIZE);
-    logger.info("Data added to Properties table successfully");
+    if (stepsToRun.includes(3)) {
+      logger.info("Adding data to Properties table");
+      await scrapAndInsertData();
+      logger.info("Data added to Properties table successfully");
+    }
+
     await sendMessageToSlack();
   } catch (err) {
     logger.error(err);
