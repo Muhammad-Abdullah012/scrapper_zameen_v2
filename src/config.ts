@@ -1,8 +1,9 @@
-require("dotenv").config();
+import { config } from "dotenv";
 
 import { Pool } from "pg";
 import { pino } from "pino";
 import { unlink } from "fs";
+config();
 
 unlink("logs/app.log", () => {});
 export const logger = pino(

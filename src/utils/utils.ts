@@ -3,7 +3,8 @@ import { Op } from "sequelize";
 import { mapping } from "../constants";
 import { logger as mainLogger } from "../config";
 import { Property, RawProperty, UrlModel } from "../types/model";
-require("dotenv").config();
+import { config } from "dotenv";
+config();
 
 const logger = mainLogger.child({ file: "utils" });
 

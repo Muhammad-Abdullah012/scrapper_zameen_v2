@@ -1,10 +1,11 @@
-require("dotenv").config();
+import { config } from "dotenv";
 import { Op } from "sequelize";
 import { sequelize } from "./config/sequelize";
 import { logger as mainLogger } from "./config";
 import { IinsertIntoAgencyProps } from "./types";
 import { AgencyModel, Location, Property } from "./types/model";
 
+config();
 const logger = mainLogger.child({ file: "queries" });
 
 export const insertIntoLocation = async (location: string) => {

@@ -1,6 +1,7 @@
-require("dotenv").config();
+import { config } from "dotenv";
 import { Sequelize } from "sequelize";
 
+config();
 const {
   POSTGRES_DB,
   POSTGRES_USER,

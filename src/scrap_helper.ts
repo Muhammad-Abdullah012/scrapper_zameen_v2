@@ -1,4 +1,4 @@
-require("dotenv").config();
+import { config } from "dotenv";
 import * as cheerio from "cheerio";
 import { InferAttributes, Op } from "sequelize";
 import axios, { AxiosError } from "axios";
@@ -21,6 +21,7 @@ import {
 import { Feature, IPagesData } from "./types";
 import { sequelize } from "./config/sequelize";
 
+config();
 const logger = mainLogger.child({ file: "scrap_helper" });
 
 export const scrapeHtmlPage = async (
@@ -48,7 +49,7 @@ export const scrapeHtmlPage = async (
 
   const locationIdPromise = insertIntoLocation(location);
 
-  const keyValue: { [key: string]: any } = {
+  const keyValue: { [key: string]: unknown } = {
     header,
     description,
     url,
@@ -57,7 +58,7 @@ export const scrapeHtmlPage = async (
     is_posted_by_agency: agencyInfo.length > 0,
     external_id,
   };
-  $('ul[aria-label="Property details" i] li').each(function (i, elem) {
+  $('ul[aria-label="Property details" i] li').each(function () {
     const spans = $(this)
       .children("span")
       .filter(function () {

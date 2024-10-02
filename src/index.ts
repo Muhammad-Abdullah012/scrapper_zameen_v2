@@ -1,4 +1,4 @@
-require("dotenv").config();
+import { config } from "dotenv";
 import { AggregateError, InferCreationAttributes, Op } from "sequelize";
 import { City, CityModel } from "./types/model";
 import {
@@ -19,7 +19,7 @@ import {
   PROPERTY_TYPES,
   REVERSE_CITIES_MAP,
 } from "./constants";
-
+config();
 const logger = mainLogger.child({ file: "index" });
 
 (async () => {
