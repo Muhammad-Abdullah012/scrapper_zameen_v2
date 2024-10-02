@@ -39,7 +39,7 @@ const logger = mainLogger.child({ file: "index" });
         {
           ignoreDuplicates: true,
           returning: ["id", "name"],
-        }
+        },
       );
       const cityModels = await City.findAll({
         where: {
@@ -64,14 +64,14 @@ const logger = mainLogger.child({ file: "index" });
         .map((city) =>
           PROPERTY_TYPES.map((propertyType) =>
             PROPERTY_PURPOSE.map((purpose) =>
-              getUrl(propertyType, city, purpose, citiesMap[city])
-            )
-          )
+              getUrl(propertyType, city, purpose, citiesMap[city]),
+            ),
+          ),
         )
         .flat(2);
       logger.info(`Pages :: ${pages.length}`);
       await getAllPromisesResults(
-        pages.map((p) => getFilteredPages(p, citiesLastAddedMap))
+        pages.map((p) => getFilteredPages(p, citiesLastAddedMap)),
       );
 
       logger.info("Urls inserted successfully");

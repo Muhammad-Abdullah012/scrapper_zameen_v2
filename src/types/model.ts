@@ -110,7 +110,7 @@ export const Property = sequelize.define<IPropertiesModel>(
         "shop",
         "lower_portion",
         "upper_portion",
-        "warehouse"
+        "warehouse",
       ),
       allowNull: true,
     },
@@ -224,7 +224,7 @@ export const Property = sequelize.define<IPropertiesModel>(
     timestamps: false,
     underscored: true,
     paranoid: true,
-  }
+  },
 );
 
 export interface IRawProperty
@@ -289,7 +289,7 @@ export const RawProperty = sequelize.define<IRawProperty>(
     underscored: true,
     modelName: "RawProperty",
     tableName: RAW_PROPERTIES_TABLE,
-  }
+  },
 );
 
 export interface CityModel
@@ -334,7 +334,7 @@ export const City = sequelize.define<CityModel>(
     timestamps: false,
     underscored: true,
     paranoid: true,
-  }
+  },
 );
 
 export interface LocationModel
@@ -379,7 +379,7 @@ export const Location = sequelize.define<LocationModel>(
     timestamps: false,
     underscored: true,
     paranoid: true,
-  }
+  },
 );
 
 Property.belongsTo(Location, { foreignKey: "location_id" });
@@ -401,7 +401,7 @@ RankedPropertyForSaleView.init(
     modelName: "RankedPropertyForSale",
     tableName: "rankedpropertiesforsale",
     timestamps: false,
-  }
+  },
 );
 
 RankedPropertyForSaleView.belongsTo(Location, { foreignKey: "location_id" });
@@ -422,7 +422,7 @@ RankedPropertyForRentView.init(
     modelName: "RankedPropertyForRent",
     tableName: "rankedpropertiesforrent",
     timestamps: false,
-  }
+  },
 );
 RankedPropertyForRentView.belongsTo(Location, { foreignKey: "location_id" });
 Location.hasMany(RankedPropertyForRentView, { foreignKey: "location_id" });
@@ -475,7 +475,7 @@ AgencyModel.init(
     timestamps: false,
     underscored: true,
     paranoid: true,
-  }
+  },
 );
 
 Property.belongsTo(AgencyModel, { foreignKey: "agency_id" });
@@ -498,7 +498,7 @@ CountPropertiesView.init(
     tableName: "countpropertiesview",
     timestamps: false,
     underscored: true,
-  }
+  },
 );
 
 export class UrlModel extends Model<
@@ -550,7 +550,7 @@ UrlModel.init(
     tableName: URLS_TABLE,
     timestamps: false,
     underscored: true,
-  }
+  },
 );
 
 UrlModel.belongsTo(City, { foreignKey: "city_id" });

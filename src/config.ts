@@ -10,7 +10,7 @@ export const logger = pino(
   {
     timestamp: pino.stdTimeFunctions.isoTime,
   },
-  pino.destination("logs/app.log")
+  pino.destination("logs/app.log"),
 );
 
 export const pool = new Pool({

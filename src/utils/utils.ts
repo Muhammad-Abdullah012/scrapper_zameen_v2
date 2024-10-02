@@ -67,7 +67,7 @@ export const getUrl = (
   propertyType: string,
   city: string,
   purpose: string,
-  cityId: number
+  cityId: number,
 ) => {
   let type = purpose === "Rent" ? "Rentals" : propertyType;
   if (purpose === "Rent" && ["Plots", "Commercial"].includes(propertyType)) {
@@ -151,7 +151,7 @@ export const formatKeyValue = (key: string, value: string) => {
 };
 
 export const getAllPromisesResults = async <T>(
-  promises: Promise<T>[]
+  promises: Promise<T>[],
 ): Promise<T[]> => {
   const promiseResults = await Promise.allSettled(promises);
   return promiseResults

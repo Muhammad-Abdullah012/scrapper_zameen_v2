@@ -28,7 +28,7 @@ export const scrapeHtmlPage = async (
   url: string,
   html: string = "",
   cityId?: number,
-  external_id?: number
+  external_id?: number,
 ) => {
   if (!html.length) return {};
   const $ = cheerio.load(html);
@@ -109,7 +109,7 @@ export const scrapeHtmlPage = async (
 const processPage = async (
   link: string,
   cityId: number,
-  lastAddedDbPromise: Promise<Date | null>
+  lastAddedDbPromise: Promise<Date | null>,
 ) => {
   try {
     logger.info("onPage ==> " + link);
@@ -136,7 +136,7 @@ const processPage = async (
           return null;
         }
         const creationDateSpan = li.find(
-          'span[aria-label="Listing creation date"]'
+          'span[aria-label="Listing creation date"]',
         );
 
         const creationDate = creationDateSpan
@@ -155,7 +155,7 @@ const processPage = async (
 
         if (!dateStr) {
           logger.error(
-            `Could not convert date for ${listingLink}, date was: ${creationDate}`
+            `Could not convert date for ${listingLink}, date was: ${creationDate}`,
           );
           return null;
         }
@@ -210,7 +210,7 @@ export const getHtmlPage = async (page: IPagesData) => {
 
 export const getFilteredPages = async (
   page: IPagesData,
-  cityLastAddedMap: Record<number, Promise<Date | null>>
+  cityLastAddedMap: Record<number, Promise<Date | null>>,
 ) => {
   let i = 1;
   while (true) {
@@ -219,7 +219,7 @@ export const getFilteredPages = async (
     const { listingLinks, shouldStopLoop } = await processPage(
       url,
       page.cityId,
-      cityLastAddedMap[page.cityId]
+      cityLastAddedMap[page.cityId],
     );
 
     logger.info("Running url bulk create query");
@@ -231,7 +231,7 @@ export const getFilteredPages = async (
         ignoreDuplicates: true,
         returning: false,
         logging: false,
-      }
+      },
     );
 
     if (shouldStopLoop) break;
@@ -259,8 +259,8 @@ export const processInBatches = async () => {
         }
         const dataToInsert = await getAllPromisesResults(
           batch.map((page) =>
-            getHtmlPage({ url: page.url, cityId: page.city_id })
-          )
+            getHtmlPage({ url: page.url, cityId: page.city_id }),
+          ),
         );
 
         logger.info(`dataToInsert length => ${dataToInsert.length}`);
@@ -276,7 +276,7 @@ export const processInBatches = async () => {
             returning: ["url"],
             logging: false,
             transaction,
-          }
+          },
         );
 
         logger.info("Running url update query");
@@ -290,7 +290,7 @@ export const processInBatches = async () => {
             },
             logging: false,
             transaction,
-          }
+          },
         );
       });
     } catch (err) {
@@ -325,8 +325,8 @@ export const scrapAndInsertData = async () => {
 
         const dataToInsert = await getAllPromisesResults(
           rawData.map(({ url, html, city_id, external_id }) =>
-            scrapeHtmlPage(url, html, city_id, external_id)
-          )
+            scrapeHtmlPage(url, html, city_id, external_id),
+          ),
         );
 
         logger.info(`dataToInsert length => ${dataToInsert.length}`);
@@ -342,7 +342,7 @@ export const scrapAndInsertData = async () => {
             returning: ["url"],
             logging: false,
             transaction,
-          }
+          },
         );
 
         logger.info("Running raw_properties update query");
@@ -356,7 +356,7 @@ export const scrapAndInsertData = async () => {
             },
             logging: false,
             transaction,
-          }
+          },
         );
       });
     } catch (err) {
