@@ -19,6 +19,10 @@ export const formatPrice = (price: string) => {
     logger.debug(`price format is not correct: ${price}`);
     return 0;
   }
+  if (!mapping[parts[1]]) {
+    logger.debug(`unknown unit: ${parts[1]}`);
+    return 0;
+  }
   const numericPart = match[0];
   let numericValue = parseFloat(numericPart);
 
@@ -106,8 +110,13 @@ export const formatArea = (area: string) => {
       break;
     }
     default: {
-      console.error(`Invalid area unit: ${area_unit}`);
+      logger.error(`Invalid area unit: ${area_unit}`);
+      return 0;
     }
+  }
+  if (isNaN(Number(area_array[0].replace(/,/g, "")))) {
+    logger.error(`Invalid area value: ${area_array[0]}`);
+    return 0;
   }
   return Number(area_array[0].replace(/,/g, "")) * factor;
 };
