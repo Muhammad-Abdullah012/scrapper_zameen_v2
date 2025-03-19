@@ -1,6 +1,6 @@
 # Overview
 
-This project uses Cheerio and Axios to scrape data from a zameen.com website. It is built using TypeScript and utilizes PNPM as the package manager.
+This project uses Cheerio and Axios to scrape data from zameen.com website. It is built using TypeScript and utilizes PNPM as the package manager.
 
 ## Cronjob
 
